@@ -11,7 +11,7 @@
 </p>
 
 > [!NOTE]
-> **Token Monitor for Omarchy** is a fork of [Javis603/token-monitor](https://github.com/Javis603/token-monitor), adapted for [Omarchy](https://omarchy.org) (Hyprland / Wayland) with a [Quickshell bar](docs/omarchy.md). All credit for the original project goes to its authors; it is distributed under the [MIT License](LICENSE), whose original copyright notice is preserved. Please report issues specific to this adaptation here rather than upstream.
+> **Token Monitor for Omarchy** is a fork of [Javis603/token-monitor](https://github.com/Javis603/token-monitor), adapted for [Omarchy](https://omarchy.org) (Hyprland / Wayland) with a [bar widget](docs/omarchy.md). All credit for the original project goes to its authors; it is distributed under the [MIT License](LICENSE), whose original copyright notice is preserved. Please report issues specific to this adaptation here rather than upstream.
 
 <p align="center">
     <a href="https://github.com/Javis603/token-monitor/releases"><img src="https://img.shields.io/github/v/release/Javis603/token-monitor?include_prereleases&style=flat-square&label=release&color=22c55e" alt="Latest release" /></a>
@@ -202,9 +202,9 @@ Packaged builds check GitHub Releases automatically. When an update is available
 
 Local mode is the default: launch the app and it starts tracking this device. No hub, agent, or config required.
 
-### Omarchy bar
+### Omarchy bar widget
 
-On [Omarchy](https://omarchy.org), this fork can replace Waybar with a [Quickshell](https://quickshell.org) bar that keeps Omarchy's modules and adds a Token Monitor icon opening a full usage dashboard. It runs the hub and headless agent as user services. Requires Quickshell 0.2+ and Node.js 22.15+.
+On [Omarchy](https://omarchy.org) 4, this fork adds a Token Monitor widget to the Omarchy bar: one icon next to Omarchy's own, opening a panel with usage, AI tool limits, breakdowns, a 30-day chart, sessions and devices. It runs the hub and headless agent as user services. Requires Node.js 22.15+.
 
 ```bash
 git clone https://github.com/88srzh/token-monitor-omarchy.git ~/.local/share/token-monitor

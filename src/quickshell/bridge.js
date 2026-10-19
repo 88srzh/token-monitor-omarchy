@@ -1,17 +1,18 @@
 'use strict';
 
-// The Quickshell bar's data feed: follows the Hub's stats stream and prints one
+// The Omarchy bar widget's data feed: follows the Hub's stats stream and prints one
 // JSON line per update on stdout, which the QML side reads with a SplitParser.
 //
 // Lines are `{ "type": "model", ... }` with a view model from dashboardModel.js,
 // or `{ "type": "status", "connected": false, "error": ... }` while the Hub is
 // unreachable. The bridge reconnects on its own and never exits on a Hub
-// failure, so the shell only restarts it if the process itself dies.
+// failure, so the widget only restarts it if the process itself dies.
 //
 // It deliberately does not send `x-token-monitor-stream: 2`: every update is
 // then a complete `stats` event, and there is no freshness-only delta to merge.
-// The secret travels in a header and never on a command line, because Quickshell
-// launches this from a Hyprland session where `ps` shows every argument.
+// The secret travels in a header and never on a command line, because
+// omarchy-shell launches this in the user session where `ps` shows every
+// argument.
 
 const { loadDotEnv, parseArgs } = require('../shared/config');
 const { buildDashboardModel } = require('./dashboardModel');

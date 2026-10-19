@@ -1,0 +1,27 @@
+{
+  "schemaVersion": 1,
+  "id": "token-monitor",
+  "name": "Token Monitor",
+  "version": "1.0.0",
+  "author": "Token Monitor for Omarchy",
+  "license": "MIT",
+  "description": "Token usage, cost and AI tool limits for your AI coding tools across all your devices, from a Token Monitor hub.",
+  "kinds": ["bar-widget"],
+  "entryPoints": {
+    "barWidget": "Panel.qml"
+  },
+  "barWidget": {
+    "displayName": "Token Monitor",
+    "description": "One bar icon and one panel: today, month and all-time usage, AI tool limits, tools, models, a 30-day chart, sessions, projects and devices.",
+    "category": "AI",
+    "aliases": ["tokens", "token-monitor", "usage"],
+    "allowMultiple": false,
+    "defaultSection": "right",
+    "defaults": {
+      "period": "today"
+    },
+    "schema": [
+      { "key": "period", "type": "enum", "label": "Period shown when the panel opens", "options": ["today", "month", "allTime"], "defaultValue": "today" }
+    ]
+  }
+}

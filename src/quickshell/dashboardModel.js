@@ -1,6 +1,6 @@
 'use strict';
 
-// The Quickshell bar's view model: one pure projection of a Hub stats snapshot
+// The Omarchy bar widget's view model: one pure projection of a Hub stats snapshot
 // into ready-to-paint rows.
 //
 // QML cannot load the shared UMD modules (its global object is read-only, and
@@ -9,6 +9,8 @@
 // can reach them. The QML side lays out what it is given and computes nothing
 // beyond geometry. Re-run this with a fresh `now` to advance relative times;
 // the bridge does that on a timer rather than leaving clocks to QML.
+//
+// Labels and units stay in English, like the rest of Omarchy's shell.
 
 const { CLIENT_LABELS } = require('../shared/clientCatalog');
 const { LIMIT_PROVIDER_LABELS } = require('../shared/limits/providers');
@@ -100,9 +102,11 @@ function agoText(at, now) {
   return `${durationText(delta)} ago`;
 }
 
+// `crit` matches Omarchy's own agents panel, which raises the bar alarm for
+// the last 10% of an allowance.
 function toneForUsed(percent) {
-  if (percent >= 95) return 'crit';
-  if (percent >= 80) return 'warn';
+  if (percent >= 90) return 'crit';
+  if (percent >= 75) return 'warn';
   return 'ok';
 }
 

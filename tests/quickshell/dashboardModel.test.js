@@ -123,19 +123,19 @@ test('limits keep failures, drop disabled providers and use the shared labels', 
   ]);
   assert.equal(claude.updatedText, '5m ago');
 
-  // A balance fills with what is left and warns as it drains.
+  // A balance fills with what is left and alarms in its last 10%.
   assert.equal(openrouter.windows[0].valueText, '$12.50');
   assert.equal(openrouter.windows[0].fraction, 0.1);
-  assert.equal(openrouter.windows[0].tone, 'warn');
+  assert.equal(openrouter.windows[0].tone, 'crit');
 
   assert.equal(codex.statusText, 'Sign-in required');
   assert.deepEqual(codex.windows, []);
 });
 
-test('the bar warns on the tightest fresh quota', () => {
+test('the bar alarms on the tightest fresh quota', () => {
   const { bar } = buildDashboardModel(stats(), { now: NOW });
   assert.equal(bar.text, '1.5K');
-  assert.equal(bar.tone, 'warn');
+  assert.equal(bar.tone, 'crit');
   assert.equal(bar.tooltip, 'Today  1.5K tokens · $0.2500\nOpenRouter Credits  $12.50');
 });
 
