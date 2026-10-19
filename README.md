@@ -10,6 +10,9 @@
     <em>One live dashboard for every AI coding tool, synced across every machine.</em>
 </p>
 
+> [!NOTE]
+> **Token Monitor for Omarchy** is a fork of [Javis603/token-monitor](https://github.com/Javis603/token-monitor), adapted for [Omarchy](https://omarchy.org) (Hyprland / Wayland). All credit for the original project goes to its authors; it is distributed under the [MIT License](LICENSE), whose original copyright notice is preserved. Please report issues specific to this adaptation here rather than upstream.
+
 <p align="center">
     <a href="https://github.com/Javis603/token-monitor/releases"><img src="https://img.shields.io/github/v/release/Javis603/token-monitor?include_prereleases&style=flat-square&label=release&color=22c55e" alt="Latest release" /></a>
     <a href="https://github.com/Javis603/token-monitor/releases"><img src="https://img.shields.io/github/downloads/Javis603/token-monitor/total?style=flat-square&color=22c55e" alt="Total downloads" /></a>
