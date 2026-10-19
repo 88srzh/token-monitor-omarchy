@@ -14,7 +14,7 @@ Contracts that cross subsystem boundaries. This guide names the owner, the invar
 
 ## Entry points and the Worker boundary
 
-The widget (`src/electron/main.js`), headless collector (`src/agent/agent.js`) and Node Hub (`src/hub/server.js`) share `src/shared/`. The Cloudflare Hub (`worker/src/index.js`) speaks the same protocol.
+The widget (`src/electron/main.js`), headless collector (`src/agent/agent.js`) and Node Hub (`src/hub/server.js`) share `src/shared/`. The Cloudflare Hub (`worker/src/index.js`) speaks the same protocol. The Omarchy bar's feed (`src/quickshell/bridge.js`) is a Hub stream client that prints display rows for the Quickshell config in `quickshell/`; see [omarchy.md](omarchy.md).
 
 Device collection, transforms and archives live in `src/shared/usage/`. The neighboring `src/shared/usage.js` is the Hub-core usage model, not that directory's index: `require('./usage')` resolves the file. Do not add `usage/index.js`.
 
