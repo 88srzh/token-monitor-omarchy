@@ -96,6 +96,11 @@ systemctl --user enable --now $units
 # folders, and the checkout cannot be the plugin folder itself because
 # omarchy-shell reloads every plugin on any write under it, which the hub does
 # on every ingest. local.json tells the copy where the bridge lives.
+# Whether this run changes the QML the shell already has loaded.
+changed=0
+for file in "$repo"/omarchy-plugin/*; do
+    cmp -s "$file" "$plugin_dir/${file##*/}" || changed=1
+done
 mkdir -p "$plugin_dir"
 cp "$repo"/omarchy-plugin/* "$plugin_dir"/
 "$node" -e 'process.stdout.write(JSON.stringify({ repoRoot: process.argv[1], node: process.argv[2] }, null, 2) + "\n")' \
@@ -108,6 +113,13 @@ if shell_running; then
     until plugin_has '' || [ $tries -ge 20 ]; do sleep 0.5; tries=$((tries + 1)); done
     # Re-running keeps an enabled widget wherever it was moved to.
     if plugin_enabled; then
+        # omarchy-shell reloads a changed plugin, but its component-cache
+        # clear is a no-op from QML, so the reload keeps the old Panel.qml.
+        # Only a fresh shell picks the new one up.
+        if [ "$changed" = 1 ] && command -v omarchy-restart-shell >/dev/null; then
+            say 'Restarting omarchy-shell to load the updated widget…'
+            omarchy-restart-shell
+        fi
         say 'Updated the Token Monitor bar widget.'
     else
         omarchy-plugin-enable "$plugin_id" --section right
