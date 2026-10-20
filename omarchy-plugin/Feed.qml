@@ -1,15 +1,17 @@
 import QtQuick
+import Quickshell
 import Quickshell.Io
 
 // The Hub feed: runs src/quickshell/bridge.js from the Token Monitor checkout
 // and keeps its latest line. The bridge has already turned each stats snapshot
 // into display rows, so nothing here interprets usage data.
 //
-// The checkout and the Node binary come from local.json, which
-// scripts/omarchy/install.sh writes next to this file. The plugin directory is
-// a copy rather than the checkout itself: omarchy-shell watches its plugin
-// directory recursively and reloads every plugin on any write, and the Hub
-// writes into the checkout on every ingest.
+// The checkout and the Node binary come from backend.json, which the
+// checkout's scripts/omarchy/install.sh writes outside the plugin folder. The
+// plugin is installed on its own (`omarchy plugin add`) rather than from the
+// checkout: omarchy-shell watches its plugin directory recursively and reloads
+// every plugin on any write, and the Hub writes into the checkout on every
+// ingest.
 Item {
   id: root
 
@@ -20,7 +22,8 @@ Item {
 
   property string repoRoot: ""
   property string node: "node"
-  readonly property string configPath: decodeURIComponent(String(Qt.resolvedUrl("local.json")).replace(/^file:\/\//, ""))
+  readonly property string configPath: (Quickshell.env("XDG_CONFIG_HOME") || Quickshell.env("HOME") + "/.config")
+    + "/token-monitor-omarchy/backend.json"
 
   function handleLine(line) {
     var message
@@ -40,8 +43,11 @@ Item {
     }
   }
 
+  // Also rereads backend.json, so installing the backend after the plugin
+  // needs no shell restart.
   function restart() {
     bridge.running = false
+    config.reload()
     restartTimer.restart()
   }
 
@@ -54,14 +60,14 @@ Item {
       try {
         parsed = JSON.parse(text())
       } catch (e) {
-        root.error = "local.json is not valid JSON; re-run scripts/omarchy/install.sh"
+        root.error = "backend.json is not valid JSON; re-run scripts/omarchy/install.sh"
         return
       }
       root.repoRoot = String(parsed.repoRoot || "")
       root.node = String(parsed.node || "node")
       if (root.repoRoot !== "") bridge.running = true
     }
-    onLoadFailed: root.error = "not installed: run scripts/omarchy/install.sh from the Token Monitor checkout"
+    onLoadFailed: root.error = "backend not installed: see the plugin README"
   }
 
   Process {

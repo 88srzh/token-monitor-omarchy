@@ -1,9 +1,9 @@
 {
   "schemaVersion": 1,
-  "id": "token-monitor",
+  "id": "io.github.88srzh.token-monitor",
   "name": "Token Monitor",
-  "version": "1.0.0",
-  "author": "Token Monitor for Omarchy",
+  "version": "1.1.0",
+  "author": "88srzh",
   "license": "MIT",
   "description": "Token usage, cost and AI tool limits for your AI coding tools across all your devices, from a Token Monitor hub.",
   "kinds": ["bar-widget"],
