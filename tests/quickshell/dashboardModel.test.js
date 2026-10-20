@@ -114,12 +114,17 @@ test('long breakdowns fold their tail into one row', () => {
 test('limits show only accounts with a reading, with the shared labels', () => {
   const input = stats();
   input.limits.providers.push(
-    { provider: 'zai', accountKey: 'sha256:zai', status: 'sourceRateLimited', windows: [{ kind: 'session', usedPercent: 5 }] },
+    { provider: 'zai', accountKey: 'sha256:zai', status: 'sourceRateLimited', windows: [{ kind: 'session', usedPercent: 95 }] },
     { provider: 'kimi', accountKey: 'sha256:kimi', status: 'ok', windows: [] }
   );
-  const { limits } = buildDashboardModel(input, { now: NOW });
-  // Signed out, disabled, rate limited and window-less accounts are all left out.
-  assert.deepEqual(limits.map((row) => row.provider), ['claude', 'openrouter']);
+  const { limits, bar } = buildDashboardModel(input, { now: NOW });
+  // Signed out, disabled and window-less accounts are left out; a failed
+  // refresh keeps its last reading, marked stale.
+  assert.deepEqual(limits.map((row) => row.provider), ['claude', 'openrouter', 'zai']);
+  assert.equal(limits[0].stale, false);
+  assert.equal(limits[2].stale, true);
+  // A stale 95% must not raise the bar alarm.
+  assert.doesNotMatch(bar.tooltip, /Z\.ai|zai/i);
 
   const [claude, openrouter] = limits;
   assert.equal(claude.label, 'Claude');

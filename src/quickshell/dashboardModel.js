@@ -236,13 +236,17 @@ function limitWindowRow(provider, window, now) {
   };
 }
 
-// Only accounts with a reading get a block. A provider that is unconfigured,
-// signed out, rate limited or failing has nothing to show, and a row that
-// only says so is noise in a bar panel.
+// Only accounts with a reading get a block: a provider that is unconfigured,
+// signed out or has never answered has nothing to show, and a row that only
+// says so is noise in a bar panel. A failed refresh is different: the runtime
+// keeps the last windows and reports the failure as the status, so those
+// windows stay, marked stale, rather than the quota vanishing on a 429.
+const DISABLED_LIMIT_STATUSES = new Set(['disabled', 'notConfigured']);
+
 function limitRows(limits, now) {
   const providers = Array.isArray(limits?.providers) ? limits.providers : [];
   return providers
-    .filter((provider) => provider && provider.status === 'ok')
+    .filter((provider) => provider && !DISABLED_LIMIT_STATUSES.has(provider.status))
     .map((provider) => ({
       provider,
       windows: (Array.isArray(provider.windows) ? provider.windows : [])
@@ -258,7 +262,7 @@ function limitRows(limits, now) {
         account: String(provider.accountLabel || provider.accountName || ''),
         plan: String(provider.planLabel || ''),
         color: vendorColor(provider.provider === 'factory' ? 'droid' : provider.provider),
-        stale: provider.stale === true,
+        stale: provider.stale === true || provider.status !== 'ok',
         updatedText: agoText(provider.updatedAt, now),
         windows
       };
