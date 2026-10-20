@@ -111,11 +111,17 @@ test('long breakdowns fold their tail into one row', () => {
   assert.equal(rows.at(-1).label, '5 more');
 });
 
-test('limits keep failures, drop disabled providers and use the shared labels', () => {
-  const { limits } = buildDashboardModel(stats(), { now: NOW });
-  assert.deepEqual(limits.map((row) => row.provider), ['claude', 'openrouter', 'codex']);
+test('limits show only accounts with a reading, with the shared labels', () => {
+  const input = stats();
+  input.limits.providers.push(
+    { provider: 'zai', accountKey: 'sha256:zai', status: 'sourceRateLimited', windows: [{ kind: 'session', usedPercent: 5 }] },
+    { provider: 'kimi', accountKey: 'sha256:kimi', status: 'ok', windows: [] }
+  );
+  const { limits } = buildDashboardModel(input, { now: NOW });
+  // Signed out, disabled, rate limited and window-less accounts are all left out.
+  assert.deepEqual(limits.map((row) => row.provider), ['claude', 'openrouter']);
 
-  const [claude, openrouter, codex] = limits;
+  const [claude, openrouter] = limits;
   assert.equal(claude.label, 'Claude');
   assert.deepEqual(claude.windows.map((window) => [window.label, window.valueText, window.tone, window.resetText]), [
     ['Session', '82%', 'warn', 'resets in 2h 14m'],
@@ -128,8 +134,6 @@ test('limits keep failures, drop disabled providers and use the shared labels', 
   assert.equal(openrouter.windows[0].fraction, 0.1);
   assert.equal(openrouter.windows[0].tone, 'crit');
 
-  assert.equal(codex.statusText, 'Sign-in required');
-  assert.deepEqual(codex.windows, []);
 });
 
 test('the bar alarms on the tightest fresh quota', () => {

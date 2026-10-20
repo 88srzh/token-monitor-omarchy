@@ -44,16 +44,6 @@ const TREND_DAYS = 45;
 const TREND_SCALE = 1000;
 const UNCLASSIFIED_ID = 'unclassified';
 
-// Limit statuses that mean "nothing to show", as opposed to a failure worth a row.
-const HIDDEN_LIMIT_STATUSES = new Set(['disabled', 'notConfigured']);
-const LIMIT_STATUS_TEXT = Object.freeze({
-  unauthorized: 'Sign-in required',
-  rateLimited: 'Rate limited',
-  sourceRateLimited: 'Source rate limited',
-  unavailable: 'Unavailable',
-  error: 'Error'
-});
-
 // The widget's dark-surface palette: lifted brand colours, and `null` for the
 // near-black marks so QML paints them in the theme's foreground instead.
 const PALETTE = widgetVendorPalette();
@@ -246,15 +236,21 @@ function limitWindowRow(provider, window, now) {
   };
 }
 
+// Only accounts with a reading get a block. A provider that is unconfigured,
+// signed out, rate limited or failing has nothing to show, and a row that
+// only says so is noise in a bar panel.
 function limitRows(limits, now) {
   const providers = Array.isArray(limits?.providers) ? limits.providers : [];
   return providers
-    .filter((provider) => provider && !HIDDEN_LIMIT_STATUSES.has(provider.status))
-    .map((provider) => {
-      const ok = provider.status === 'ok';
-      const windows = ok && Array.isArray(provider.windows)
-        ? provider.windows.filter((window) => window && typeof window === 'object').map((window) => limitWindowRow(provider, window, now))
-        : [];
+    .filter((provider) => provider && provider.status === 'ok')
+    .map((provider) => ({
+      provider,
+      windows: (Array.isArray(provider.windows) ? provider.windows : [])
+        .filter((window) => window && typeof window === 'object')
+        .map((window) => limitWindowRow(provider, window, now))
+    }))
+    .filter(({ windows }) => windows.length > 0)
+    .map(({ provider, windows }) => {
       return {
         id: String(provider.accountKey || provider.provider),
         provider: String(provider.provider || ''),
@@ -262,8 +258,6 @@ function limitRows(limits, now) {
         account: String(provider.accountLabel || provider.accountName || ''),
         plan: String(provider.planLabel || ''),
         color: vendorColor(provider.provider === 'factory' ? 'droid' : provider.provider),
-        status: String(provider.status || ''),
-        statusText: ok ? '' : LIMIT_STATUS_TEXT[provider.status] || String(provider.status || ''),
         stale: provider.stale === true,
         updatedText: agoText(provider.updatedAt, now),
         windows

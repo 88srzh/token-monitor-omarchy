@@ -567,7 +567,7 @@ Panel {
   }
 
   // One limits account: name and plan, then each window as label, value,
-  // meter and reset countdown — or the reason it has none.
+  // meter and reset countdown.
   component ProviderBlock: Column {
     id: block
     property var provider: null
@@ -616,16 +616,6 @@ Panel {
         horizontalAlignment: Text.AlignRight
         elide: Text.ElideRight
       }
-    }
-
-    Text {
-      textFormat: Text.PlainText
-      visible: !!block.provider && block.provider.statusText !== ""
-      width: parent.width
-      text: block.provider ? block.provider.statusText : ""
-      color: root.urgent
-      font.family: root.fontFamily
-      font.pixelSize: Style.font.caption
     }
 
     Repeater {
