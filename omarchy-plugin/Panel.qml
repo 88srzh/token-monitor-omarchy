@@ -142,11 +142,13 @@ Panel {
         boundsBehavior: Flickable.StopAtBounds
         flickableDirection: Flickable.VerticalFlick
         interactive: contentHeight > height
-        ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
+        ScrollBar.vertical: ScrollBar { id: panelScroll; policy: ScrollBar.AsNeeded }
 
         Column {
           id: column
-          width: panelFlick.width
+          // The scroll bar overlays the content, so leave it a gutter or it
+          // covers the right-aligned figures.
+          width: panelFlick.width - (panelFlick.interactive ? panelScroll.width + Style.spacing.sm : 0)
           spacing: Style.space(12)
 
           // ---------- Hero ----------
