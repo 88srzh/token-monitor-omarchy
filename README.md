@@ -204,7 +204,7 @@ Local mode is the default: launch the app and it starts tracking this device. No
 
 ### Omarchy bar widget
 
-On [Omarchy](https://omarchy.org) 4, this fork adds a Token Monitor widget to the Omarchy bar: one icon next to Omarchy's own, opening a panel with usage, AI tool limits, breakdowns, a 30-day chart, sessions and devices. It runs the hub and headless agent as user services. Requires Node.js 22.15+.
+On [Omarchy](https://omarchy.org) 4, this fork adds a Token Monitor widget to the Omarchy bar: one icon next to Omarchy's own, opening a panel with usage, AI tool limits, breakdowns, a rolling-year activity grid, sessions and devices. It runs the hub and headless agent as user services and adds the widget from its own repository, [88srzh/omarchy-token-monitor](https://github.com/88srzh/omarchy-token-monitor). Requires Node.js 22.15+.
 
 ```bash
 git clone https://github.com/88srzh/token-monitor-omarchy.git ~/.local/share/token-monitor

@@ -25,12 +25,27 @@ test('the plugin manifest passes the omarchy-shell schema rules', () => {
   assert.ok(manifest.entryPoints.barWidget);
 });
 
-test('the plugin folder holds no symlinks and no local.json', () => {
+// The plugin folder is published as its own repository for `omarchy plugin
+// add` and the plugin marketplace, which require these files at its root.
+test('the plugin folder is a publishable plugin repository', () => {
   for (const name of fs.readdirSync(pluginDir)) {
     assert.equal(fs.lstatSync(path.join(pluginDir, name)).isSymbolicLink(), false, name);
   }
-  // local.json is machine-specific and written by the installer.
-  assert.equal(fs.existsSync(path.join(pluginDir, 'local.json')), false);
+  for (const name of ['README.md', 'LICENSE', 'preview.png']) {
+    assert.ok(fs.statSync(path.join(pluginDir, name)).isFile(), name);
+  }
+  // The MIT notice of the project the widget is built on must travel with it.
+  assert.match(fs.readFileSync(path.join(pluginDir, 'LICENSE'), 'utf8'), /Copyright \(c\) 2026 Javis\n/);
+  // Marketplace ids are global, so they are namespaced.
+  assert.match(manifest.id, /^io\.github\.[^.]+\.[a-z0-9-]+$/);
+});
+
+test('the installer adds the plugin this folder publishes and writes the config it reads', () => {
+  const install = fs.readFileSync(path.join(root, 'scripts', 'omarchy', 'install.sh'), 'utf8');
+  assert.equal(install.match(/^plugin_id=(.+)$/m)[1], manifest.id);
+  const feed = fs.readFileSync(path.join(pluginDir, 'Feed.qml'), 'utf8');
+  const relative = install.match(/^backend_config=\$config_home\/(.+)$/m)[1];
+  assert.ok(feed.includes(`"/${relative}"`), relative);
 });
 
 test('the widget launches the bridge at its real path', () => {
