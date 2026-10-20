@@ -27,7 +27,7 @@ function stats(overrides = {}) {
           'token-monitor': { label: 'token-monitor', tokens: 1400, costUsd: 0.25, clients: { claude: 1000, codex: 400 } }
         },
         sessions: {
-          'claude:a': { client: 'claude', sessionId: 'a', totalTokens: 1000, costUsd: 0.2, lastUsedAt: '2026-10-19T11:58:00.000Z', projectLabel: 'token-monitor', contextTokens: 50_000, contextWindow: 200_000 },
+          'claude:a': { client: 'claude', sessionId: 'a', totalTokens: 1000, costUsd: 0.2, lastUsedAt: '2026-10-19T11:58:00.000Z', projectLabel: 'token-monitor', contextTokens: 50_000, contextWindow: 200_000, models: { 'claude-opus': 1000 }, promptCache: { observedAt: '2026-10-19T11:58:00.000Z', ttlSeconds: 300 } },
           'codex:b': { client: 'codex', sessionId: 'b', totalTokens: 400, costUsd: 0.05, lastUsedAt: '2026-10-19T09:00:00.000Z', title: 'Fix the bar', projectLabel: 'omarchy' }
         }
       },
@@ -155,6 +155,51 @@ test('sessions are recent-first with activity and context', () => {
   ]);
   assert.equal(sessions[0].contextText, '75% context left');
   assert.equal(sessions[0].contextFraction, 0.25);
+  assert.equal(sessions[0].modelLabel, 'claude-opus');
+  assert.equal(sessions[0].cacheText, 'Cache 3m');
+  assert.equal(sessions[1].modelLabel, '');
+  assert.equal(sessions[1].cacheText, '');
+});
+
+test('the activity grid spans a rolling year with today patched in live', () => {
+  const { activity } = buildDashboardModel(stats(), { now: NOW });
+  // Eleven whole months back plus the current one, Sunday-aligned.
+  assert.ok(activity.weeks >= 48 && activity.weeks <= 54, String(activity.weeks));
+  assert.equal(activity.cells.at(-1).today, true);
+  assert.equal(activity.cells.filter((cell) => cell.today).length, 1);
+  for (const cell of activity.cells) {
+    assert.ok(cell.row >= 0 && cell.row <= 6);
+    assert.ok(cell.level >= 0 && cell.level <= 4);
+  }
+  // Today carries the live period total (1500, $0.25), not the preview row.
+  assert.match(activity.cells.at(-1).tooltip, /1\.5K tokens · \$0\.25/);
+  assert.equal(activity.months.length, 12);
+  assert.equal(activity.activeDaysText, '2 active days');
+});
+
+test('the activity grid prefers the full history the bridge fetched', () => {
+  const history = {
+    daily: [{ date: '2026-01-05', tokens: 8000, cost: 2 }, { date: '2026-10-19', tokens: 10, cost: 0.01 }],
+    summary: { activeDays: 41, peakDayTokens: 38_500_000 }
+  };
+  const { activity, trend } = buildDashboardModel(stats(), { now: NOW, history });
+  assert.equal(activity.activeDaysText, '41 active days');
+  assert.ok(activity.cells.some((cell) => cell.level === 4 && /Jan 5/.test(cell.tooltip)));
+  assert.equal(trend.peakText, 'Peak 38.5M');
+});
+
+test('the trend is a smoothed path in unit coordinates with three date marks', () => {
+  const daily = ['2026-10-12', '2026-10-14', '2026-10-15', '2026-10-17'].map((date, i) => ({ date, tokens: 1000 * (i + 1), cost: 0 }));
+  const { trend } = buildDashboardModel(stats(), { now: NOW, history: { daily, summary: {} } });
+  assert.equal(trend.path[0].op, 'M');
+  assert.equal(trend.path.length, daily.length + 1, 'one curve per gap, today included');
+  assert.ok(trend.path.slice(1).every((step) => step.op === 'C' && step.args.length === 6));
+  for (const step of trend.path) {
+    for (const value of step.args) assert.ok(value >= -0.5 && value <= 1.5, String(value));
+  }
+  assert.equal(trend.dates.length, 3);
+  assert.equal(trend.dates[0], '10/12');
+  assert.equal(trend.peakText, 'Peak 4K');
 });
 
 test('history fills idle days so the chart has a slot for each', () => {

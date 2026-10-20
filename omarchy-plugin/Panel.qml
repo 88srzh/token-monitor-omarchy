@@ -1,5 +1,6 @@
 import QtQuick
 import QtQuick.Controls
+import QtQuick.Shapes
 import Quickshell
 import Quickshell.Io
 import qs.Commons
@@ -228,6 +229,37 @@ Panel {
           }
 
           // ---------- Headline figures ----------
+          Column {
+            visible: !!root.period
+            width: parent.width
+            spacing: Style.spacing.xs
+
+            PanelSectionHeader {
+              text: "TOTAL TOKENS"
+              foreground: root.foreground
+              fontFamily: root.fontFamily
+            }
+
+            Text {
+              textFormat: Text.PlainText
+              width: parent.width
+              text: root.period ? root.period.tokensExact : ""
+              color: root.foreground
+              font.family: root.fontFamily
+              font.pixelSize: Math.round(Style.font.displayLarge * 1.6)
+              elide: Text.ElideRight
+            }
+
+            Text {
+              textFormat: Text.PlainText
+              width: parent.width
+              text: root.period ? root.period.costText : ""
+              color: root.dim
+              font.family: root.fontFamily
+              font.pixelSize: Style.font.bodySmall
+            }
+          }
+
           Grid {
             id: stats
             visible: !!root.period
@@ -238,8 +270,6 @@ Panel {
 
             readonly property real cellWidth: (width - columnSpacing * (columns - 1)) / columns
 
-            StatCell { width: stats.cellWidth; label: "Tokens"; value: root.period ? root.period.tokensText : ""; hint: root.period ? root.period.tokensExact + " tokens" : "" }
-            StatCell { width: stats.cellWidth; label: "Cost"; value: root.period ? root.period.costText : "" }
             StatCell { width: stats.cellWidth; label: "Speed"; value: root.period ? root.period.throughputText : "" }
             StatCell { width: stats.cellWidth; label: "Output"; value: root.period ? root.period.outputText : "" }
             StatCell { width: stats.cellWidth; label: "Cache read"; value: root.period ? root.period.cacheShareText : ""; hint: "Share of tokens read from the prompt cache" }
@@ -292,75 +322,63 @@ Panel {
             rows: root.period ? root.period.models : []
           }
 
-          // ---------- History ----------
+          // ---------- Activity and trend ----------
           PanelSeparator {
-            visible: historySection.visible
+            visible: activitySection.visible
             foreground: root.foreground
           }
 
           Column {
-            id: historySection
-            visible: !!root.model
+            id: activitySection
+            visible: !!root.model && !!root.model.activity
             width: parent.width
             spacing: Style.spacing.md
 
+            readonly property var activity: root.model ? root.model.activity : null
+            readonly property var trend: root.model ? root.model.trend : null
             readonly property var history: root.model ? root.model.history : null
-            readonly property var days: history ? history.days : []
-            property int hovered: -1
 
-            PanelSectionHeader {
+            SectionHead {
               width: parent.width
-              text: "LAST 30 DAYS"
-              foreground: root.foreground
-              fontFamily: root.fontFamily
+              title: "ACTIVITY"
+              meta: activitySection.activity ? activitySection.activity.activeDaysText : ""
             }
 
-            Row {
-              id: historyBars
+            Heatmap {
               width: parent.width
-              height: Style.space(56)
-              spacing: Math.max(1, Style.space(2))
+              activity: activitySection.activity
+            }
+
+            SectionHead {
+              width: parent.width
+              title: "TREND"
+              meta: activitySection.trend ? activitySection.trend.peakText : ""
+            }
+
+            TrendChart {
+              visible: steps.length > 0
+              width: parent.width
+              height: Style.space(64)
+              steps: activitySection.trend ? activitySection.trend.path : []
+            }
+
+            Item {
+              visible: !!activitySection.trend && activitySection.trend.path.length > 0
+              width: parent.width
+              implicitHeight: Style.font.caption + Style.spacing.xs
 
               Repeater {
-                model: historySection.days
+                model: activitySection.trend ? activitySection.trend.dates : []
 
-                Item {
-                  id: slot
+                Text {
                   required property var modelData
                   required property int index
-
-                  readonly property bool today: index === historySection.days.length - 1
-
-                  width: (historyBars.width - historyBars.spacing * (historySection.days.length - 1)) / Math.max(1, historySection.days.length)
-                  height: historyBars.height
-
-                  Rectangle {
-                    anchors.bottom: parent.bottom
-                    width: parent.width
-                    // A sliver keeps idle days visible as slots.
-                    height: Math.max(Style.space(2), parent.height * slot.modelData.fraction)
-                    radius: Math.min(Style.cornerRadius, width / 2)
-                    color: historySection.hovered === slot.index || slot.today
-                      ? root.foreground
-                      : root.alpha(root.foreground, 0.45)
-                  }
-
-                  MouseArea {
-                    id: slotHover
-                    anchors.fill: parent
-                    hoverEnabled: true
-                    acceptedButtons: Qt.NoButton
-                    onContainsMouseChanged: {
-                      if (containsMouse) historySection.hovered = slot.index
-                      else if (historySection.hovered === slot.index) historySection.hovered = -1
-                    }
-                  }
-
-                  PanelToolTip {
-                    visible: slotHover.containsMouse
-                    text: slot.modelData.label + " · " + slot.modelData.tokensText + " tokens · " + slot.modelData.costText
-                    fontFamily: root.fontFamily
-                  }
+                  textFormat: Text.PlainText
+                  x: index === 0 ? 0 : index === 1 ? (parent.width - width) / 2 : parent.width - width
+                  text: modelData
+                  color: root.dim
+                  font.family: root.fontFamily
+                  font.pixelSize: Style.font.caption
                 }
               }
             }
@@ -368,12 +386,11 @@ Panel {
             Text {
               textFormat: Text.PlainText
               width: parent.width
-              text: historySection.history
+              text: activitySection.history
                 ? root.joined([
-                    historySection.history.windowTokensText + " tokens",
-                    historySection.history.activeDays + " active days",
-                    "streak " + historySection.history.currentStreak + " (best " + historySection.history.longestStreak + ")",
-                    "peak " + historySection.history.peakDayText
+                    "Last 30 days " + activitySection.history.windowTokensText,
+                    "streak " + activitySection.history.currentStreak + " (best " + activitySection.history.longestStreak + ")",
+                    activitySection.history.favoriteModel
                   ])
                 : ""
               color: root.dim
@@ -780,13 +797,35 @@ Panel {
       id: shareValue
       textFormat: Text.PlainText
       text: shareRow.row ? shareRow.row.tokensText : ""
-      color: root.dim
+      color: root.foreground
       font.family: root.fontFamily
       font.pixelSize: Style.font.bodySmall
       font.bold: true
+      anchors.right: sharePercent.left
+      anchors.rightMargin: sharePercent.visible ? Style.space(8) : 0
+      anchors.verticalCenter: parent.verticalCenter
+    }
+
+    // Fixed width, so the percentages line up as a column.
+    Text {
+      id: sharePercent
+      textFormat: Text.PlainText
+      visible: !!shareRow.row && !!shareRow.row.shareText
+      width: visible ? percentMetrics.width : 0
+      text: shareRow.row && shareRow.row.shareText ? shareRow.row.shareText : ""
+      color: root.dim
+      font.family: root.fontFamily
+      font.pixelSize: Style.font.caption
+      horizontalAlignment: Text.AlignRight
       anchors.right: parent.right
       anchors.rightMargin: Style.space(8)
       anchors.verticalCenter: parent.verticalCenter
+
+      TextMetrics {
+        id: percentMetrics
+        font: sharePercent.font
+        text: "100%"
+      }
     }
 
     MouseArea {
@@ -798,13 +837,14 @@ Panel {
 
     PanelToolTip {
       visible: shareHover.containsMouse
-      text: shareRow.row ? root.joined([shareRow.row.costText, shareRow.row.shareText ? shareRow.row.shareText + " of tokens" : ""]) : ""
+      text: shareRow.row ? shareRow.row.costText : ""
       fontFamily: root.fontFamily
     }
   }
 
-  // A session: live-state dot, title, tokens; tool, project, age and context
-  // headroom underneath.
+  // A session: live-state dot, title, tokens; model (or tool), project and
+  // age underneath, with the prompt-cache countdown or context headroom
+  // opposite.
   component SessionRow: Column {
     id: sessionRow
     property var session: null
@@ -859,17 +899,226 @@ Panel {
       }
     }
 
+    Item {
+      width: parent.width
+      implicitHeight: sessionMeta.implicitHeight
+
+      Text {
+        id: sessionMeta
+        textFormat: Text.PlainText
+        anchors.left: parent.left
+        anchors.leftMargin: Style.space(7) + Style.spacing.md
+        anchors.right: sessionStatus.left
+        anchors.rightMargin: Style.spacing.md
+        text: sessionRow.session
+          ? root.joined([sessionRow.session.modelLabel || sessionRow.session.clientLabel, sessionRow.session.project, sessionRow.session.lastUsedText])
+          : ""
+        color: root.dim
+        font.family: root.fontFamily
+        font.pixelSize: Style.font.caption
+        elide: Text.ElideRight
+      }
+
+      Text {
+        id: sessionStatus
+        textFormat: Text.PlainText
+        anchors.right: parent.right
+        anchors.verticalCenter: parent.verticalCenter
+        text: sessionRow.session ? (sessionRow.session.cacheText || sessionRow.session.contextText) : ""
+        color: root.dim
+        font.family: root.fontFamily
+        font.pixelSize: Style.font.caption
+
+        MouseArea {
+          id: statusHover
+          anchors.fill: parent
+          hoverEnabled: true
+          acceptedButtons: Qt.NoButton
+        }
+
+        PanelToolTip {
+          visible: statusHover.containsMouse && !!sessionRow.session && sessionRow.session.cacheHint !== ""
+          text: sessionRow.session ? sessionRow.session.cacheHint : ""
+          fontFamily: root.fontFamily
+        }
+      }
+    }
+  }
+
+  // A section title with a dim note on the right ("25 active days").
+  component SectionHead: Item {
+    id: head
+    property string title: ""
+    property string meta: ""
+
+    implicitHeight: headTitle.implicitHeight
+
+    PanelSectionHeader {
+      id: headTitle
+      anchors.left: parent.left
+      text: head.title
+      foreground: root.foreground
+      fontFamily: root.fontFamily
+    }
+
     Text {
       textFormat: Text.PlainText
-      width: parent.width
-      leftPadding: Style.space(7) + Style.spacing.md
-      text: sessionRow.session
-        ? root.joined([sessionRow.session.clientLabel, sessionRow.session.project, sessionRow.session.lastUsedText, sessionRow.session.contextText])
-        : ""
+      anchors.right: parent.right
+      anchors.baseline: headTitle.baseline
+      text: head.meta
       color: root.dim
       font.family: root.fontFamily
       font.pixelSize: Style.font.caption
-      elide: Text.ElideRight
+    }
+  }
+
+  // The rolling-year activity grid: one column per week, Sunday on top, cells
+  // sized to fit the panel. Cells arrive in date order from the first Sunday,
+  // so a cell's index is col * 7 + row.
+  component Heatmap: Item {
+    id: heat
+    property var activity: null
+    property int hovered: -1
+
+    readonly property var cells: activity ? activity.cells : []
+    readonly property int weeks: activity ? Math.max(1, activity.weeks) : 1
+    readonly property real gap: Math.max(1, Style.space(2))
+    readonly property real cell: Math.max(2, Math.floor((width - gap * (weeks - 1)) / weeks))
+    readonly property real step: cell + gap
+
+    function levelColor(level) {
+      if (level >= 4) return root.accent
+      if (level === 3) return root.alpha(root.accent, 0.72)
+      if (level === 2) return root.alpha(root.accent, 0.48)
+      if (level === 1) return root.alpha(root.accent, 0.28)
+      return root.alpha(root.foreground, 0.07)
+    }
+
+    implicitHeight: grid.height + Style.spacing.xs + monthRow.implicitHeight
+
+    Item {
+      id: grid
+      // Right-aligned so today sits at the edge, like the Electron view.
+      anchors.right: parent.right
+      width: heat.weeks * heat.step - heat.gap
+      height: 7 * heat.step - heat.gap
+
+      Repeater {
+        model: heat.cells
+
+        Rectangle {
+          required property var modelData
+          required property int index
+          x: modelData.col * heat.step
+          y: modelData.row * heat.step
+          width: heat.cell
+          height: heat.cell
+          radius: Math.max(1, heat.cell / 4)
+          color: heat.levelColor(modelData.level)
+          border.width: modelData.today || index === heat.hovered ? 1 : 0
+          border.color: root.foreground
+        }
+      }
+
+      MouseArea {
+        anchors.fill: parent
+        hoverEnabled: true
+        acceptedButtons: Qt.NoButton
+        onPositionChanged: function(mouse) {
+          var index = Math.floor(mouse.x / heat.step) * 7 + Math.floor(mouse.y / heat.step)
+          heat.hovered = index >= 0 && index < heat.cells.length ? index : -1
+        }
+        onExited: heat.hovered = -1
+      }
+
+      Item {
+        x: heat.hovered >= 0 ? heat.cells[heat.hovered].col * heat.step : 0
+        y: heat.hovered >= 0 ? heat.cells[heat.hovered].row * heat.step : 0
+        width: heat.cell
+        height: heat.cell
+
+        PanelToolTip {
+          visible: heat.hovered >= 0
+          text: heat.hovered >= 0 ? heat.cells[heat.hovered].tooltip : ""
+          fontFamily: root.fontFamily
+        }
+      }
+    }
+
+    Item {
+      id: monthRow
+      anchors.top: grid.bottom
+      anchors.topMargin: Style.spacing.xs
+      anchors.left: grid.left
+      width: grid.width
+      implicitHeight: Style.font.caption + Style.spacing.xs
+
+      Repeater {
+        model: heat.activity ? heat.activity.months : []
+
+        Text {
+          required property var modelData
+          textFormat: Text.PlainText
+          x: modelData.col * heat.step
+          text: modelData.label
+          color: root.dim
+          font.family: root.fontFamily
+          font.pixelSize: Style.font.caption
+        }
+      }
+    }
+  }
+
+  // The trend line: the bridge sends a smoothed path in 0..1 units and this
+  // only scales it to the chart box, with a fading fill underneath.
+  component TrendChart: Item {
+    id: chart
+    property var steps: []
+    readonly property real inset: Style.space(3)
+    readonly property real lineWidth: Math.max(2, Style.space(2.5))
+    readonly property color lineColor: root.accent
+    readonly property color fillTop: root.alpha(root.accent, 0.32)
+    readonly property color fillBottom: root.alpha(root.accent, 0)
+
+    function svg(closed) {
+      var w = chart.width
+      var h = chart.height - chart.inset * 2
+      var out = []
+      for (var i = 0; i < chart.steps.length; i++) {
+        var step = chart.steps[i]
+        var coords = []
+        for (var j = 0; j + 1 < step.args.length; j += 2)
+          coords.push((step.args[j] * w).toFixed(2) + "," + (chart.inset + step.args[j + 1] * h).toFixed(2))
+        out.push(step.op + coords.join(" "))
+      }
+      if (closed && out.length > 0) out.push("L" + w.toFixed(2) + "," + chart.height.toFixed(2) + " L0," + chart.height.toFixed(2) + " Z")
+      return out.join(" ")
+    }
+
+    Shape {
+      anchors.fill: parent
+      preferredRendererType: Shape.CurveRenderer
+
+      ShapePath {
+        strokeWidth: -1
+        strokeColor: "transparent"
+        fillGradient: LinearGradient {
+          x1: 0; y1: 0
+          x2: 0; y2: chart.height
+          GradientStop { position: 0; color: chart.fillTop }
+          GradientStop { position: 1; color: chart.fillBottom }
+        }
+        PathSvg { path: chart.svg(true) }
+      }
+
+      ShapePath {
+        strokeWidth: chart.lineWidth
+        strokeColor: chart.lineColor
+        fillColor: "transparent"
+        capStyle: ShapePath.RoundCap
+        joinStyle: ShapePath.RoundJoin
+        PathSvg { path: chart.svg(false) }
+      }
     }
   }
 }
