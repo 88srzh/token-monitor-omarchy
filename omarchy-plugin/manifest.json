@@ -12,7 +12,7 @@
   },
   "barWidget": {
     "displayName": "Token Monitor",
-    "description": "One bar icon and one panel: today, month and all-time usage, AI tool limits, tools, models, a 30-day chart, sessions, projects and devices.",
+    "description": "One bar icon and one panel: today, month and all-time usage, AI tool limits, tools, models, a rolling-year activity grid and trend line, sessions, projects and devices.",
     "category": "AI",
     "aliases": ["tokens", "token-monitor", "usage"],
     "allowMultiple": false,
