@@ -23,14 +23,25 @@ const { formatCompactTokens } = require('../shared/compactTokens');
 const { formatCompactCurrencyFromUsd } = require('../shared/compactMoney');
 const { widgetVendorPalette } = require('../shared/vendorPresentation');
 const {
-  sessionActivityState, sessionContextWindow, sessionWithActivity
+  sessionActivityState, sessionContextWindow, sessionPromptCacheForRow, sessionWithActivity
 } = require('../shared/sessionLive');
+// Renderer modules, but UMD and free of DOM access: the Electron home view
+// draws its activity grid, trend line and session subtitles with these, so the
+// panel reuses them rather than restating the layout rules.
+const { sessionModelLabel } = require('../electron/renderer/sessionRows');
+const usageCharts = require('../electron/renderer/usageCharts');
+const homeOverview = require('../electron/renderer/homeOverview');
 
 const PERIOD_KEYS = ['today', 'month', 'allTime'];
 const BREAKDOWN_ROWS = 8;
 const PROJECT_ROWS = 8;
 const SESSION_ROWS = 12;
 const HISTORY_DAYS = 30;
+// The Electron home view's trend span.
+const TREND_DAYS = 45;
+// The trend path is computed on this square and handed over in 0..1 units,
+// so the panel scales it to whatever width it has.
+const TREND_SCALE = 1000;
 const UNCLASSIFIED_ID = 'unclassified';
 
 // Limit statuses that mean "nothing to show", as opposed to a failure worth a row.
@@ -272,6 +283,7 @@ function sessionRows(periods, now) {
     .slice(0, SESSION_ROWS)
     .map(({ key, session }) => {
       const context = sessionContextWindow(session);
+      const promptCache = sessionPromptCacheForRow(session, now);
       const title = String(session.title || '').trim();
       const project = String(session.projectLabel || '').trim();
       return {
@@ -279,12 +291,15 @@ function sessionRows(periods, now) {
         clientLabel: clientLabel(session.client),
         color: vendorColor(session.client),
         title: title || project || String(session.sessionId || key).slice(0, 24),
+        modelLabel: sessionModelLabel(session),
         project: title ? project : '',
         state: sessionActivityState(session, now),
         tokensText: tokensText(session.totalTokens),
         costText: costText(session.costUsd),
         lastUsedText: agoText(session.lastUsedAt, now),
         contextText: context ? `${context.percentLeft}% context left` : '',
+        cacheText: promptCache ? `Cache ${promptCache.minutes}m` : '',
+        cacheHint: promptCache ? `Prompt cache ~${promptCache.minutes}m left` : '',
         contextFraction: context ? context.percentUsed / 100 : 0
       };
     });
@@ -327,6 +342,86 @@ function historyView(preview, now) {
     longestStreak: finite(summary.longestStreak),
     peakDayText: tokensText(summary.peakDayTokens),
     favoriteModel: String(summary.favoriteModel || '')
+  };
+}
+
+function shortMonthLabel(key) {
+  const match = /^(\d{4})-(\d{2})/.exec(String(key || ''));
+  if (!match) return String(key || '');
+  return new Date(Date.UTC(Number(match[1]), Number(match[2]) - 1, 1))
+    .toLocaleDateString('en-US', { month: 'short', timeZone: 'UTC' });
+}
+
+function dayLabel(key) {
+  const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(key || ''));
+  if (!match) return String(key || '');
+  return new Date(Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3])))
+    .toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' });
+}
+
+// "10/8", as the Electron trend axis writes it.
+function trendDateLabel(key) {
+  const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(key || ''));
+  return match ? `${Number(match[2])}/${Number(match[3])}` : String(key || '');
+}
+
+// An SVG path of M/L/C commands as `{ op, args }` steps in 0..1 units.
+function normalizedPath(svgPath) {
+  const steps = [];
+  const pattern = /([MLC])([^MLC]*)/g;
+  let match;
+  while ((match = pattern.exec(String(svgPath || '')))) {
+    const args = match[2].trim().split(/[\s,]+/).filter(Boolean).map((value) => Number(value) / TREND_SCALE);
+    if (args.every(Number.isFinite)) steps.push({ op: match[1], args });
+  }
+  return steps;
+}
+
+// The Electron home view's Activity and Trend modules: a rolling-year grid
+// and a smoothed line, both with today patched in from the live period total
+// so they agree with the headline above them.
+function activityView(history, todayPeriod, now) {
+  const today = usageCharts.localDayKey(new Date(now));
+  const daily = homeOverview.patchDailyToday(
+    Array.isArray(history?.daily) ? history.daily : [],
+    today,
+    finite(todayPeriod?.totalTokens),
+    finite(todayPeriod?.costUsd)
+  );
+  // Cost is the Electron default heat metric; unpriced usage falls back to tokens.
+  const byCost = daily.some((row) => finite(row?.cost) > 0);
+  const points = usageCharts.computeHeatmapIntensities(daily)
+    .map((row) => ({ ...row, intensity: byCost ? row.costIntensity : row.tokenIntensity }));
+  const grid = usageCharts.rollingYearHeatmap(points, { endDate: today });
+  const summary = history?.summary && typeof history.summary === 'object' ? history.summary : {};
+  const activeDays = Number.isFinite(summary.activeDays)
+    ? summary.activeDays
+    : grid.cells.filter((cell) => cell.tokens > 0).length;
+
+  const trendPoints = usageCharts.clampDaily(daily, TREND_DAYS);
+  const chart = usageCharts.areaLineChart(trendPoints, {
+    width: TREND_SCALE, height: TREND_SCALE, padTop: 0, padRight: 0, padBottom: 0, padLeft: 0, metric: 'tokens', curve: true
+  });
+  return {
+    activity: {
+      weeks: grid.weeks,
+      activeDaysText: `${activeDays} active days`,
+      cells: grid.cells.map((cell) => ({
+        col: cell.col,
+        row: cell.row,
+        level: cell.intensity,
+        today: cell.date === today,
+        tooltip: cell.tokens > 0
+          ? `${dayLabel(cell.date)} · ${tokensText(cell.tokens)} tokens · ${costText(cell.cost)}`
+          : `${dayLabel(cell.date)} · no usage`
+      })),
+      months: grid.monthLabels.map((month) => ({ col: month.col, label: shortMonthLabel(month.label) }))
+    },
+    trend: {
+      peakText: `Peak ${tokensText(homeOverview.longRangePeakDayTokens({ historySummary: summary, daily }))}`,
+      dates: homeOverview.homeTrendSummary(trendPoints).dates.map(trendDateLabel),
+      path: trendPoints.length > 1 ? normalizedPath(chart.linePath) : []
+    }
   };
 }
 
@@ -373,6 +468,12 @@ function buildDashboardModel(stats, options = {}) {
   const src = stats && typeof stats === 'object' ? stats : {};
   const periods = Object.fromEntries(PERIOD_KEYS.map((key) => [key, periodView(src.periods?.[key])]));
   const limits = limitRows(src.limits, now);
+  // The bridge fetches the full history (a rolling year) when the Hub's
+  // revision moves; until then the 30-day preview in the snapshot stands in.
+  const longHistory = options.history && Array.isArray(options.history.daily) && options.history.daily.length
+    ? options.history
+    : src.historyPreview;
+  const { activity, trend } = activityView(longHistory, src.periods?.today, now);
   return {
     updatedAt: String(src.updatedAt || ''),
     updatedText: agoText(src.updatedAt, now),
@@ -380,6 +481,8 @@ function buildDashboardModel(stats, options = {}) {
     limits,
     sessions: sessionRows(src.periods, now),
     history: historyView(src.historyPreview, now),
+    activity,
+    trend,
     devices: deviceRows(src.devices, now),
     bar: barView(periods.today, limits)
   };

@@ -10,6 +10,10 @@
 //
 // It deliberately does not send `x-token-monitor-stream: 2`: every update is
 // then a complete `stats` event, and there is no freshness-only delta to merge.
+// The snapshot only carries a 30-day history preview. For the year-long
+// activity grid the bridge reads `/api/history` once, and again whenever the
+// snapshot's `historyRevision` moves.
+//
 // The secret travels in a header and never on a command line, because
 // omarchy-shell launches this in the user session where `ps` shows every
 // argument.
@@ -62,10 +66,37 @@ function runBridge({
   let controller = null;
   let retryMs = RETRY_MIN_MS;
   let retryTimer = null;
+  let history = null;
+  let historyRevision = null;
+  let historyLoading = false;
+
+  function authHeaders(extra = {}) {
+    return secret ? { ...extra, authorization: `Bearer ${secret}` } : extra;
+  }
 
   function emitModel() {
     if (!latest) return;
-    write({ type: 'model', connected: true, hubUrl: base, model: buildDashboardModel(latest, { now: now() }) });
+    write({ type: 'model', connected: true, hubUrl: base, model: buildDashboardModel(latest, { now: now(), history }) });
+  }
+
+  // Best effort: on failure the preview keeps the panel filled, and the next
+  // snapshot tries again because the revision still differs.
+  async function refreshHistory(revision) {
+    if (historyLoading || revision === historyRevision) return;
+    historyLoading = true;
+    try {
+      const response = await fetchImpl(`${base}/api/history`, { headers: authHeaders({ accept: 'application/json' }) });
+      if (!response.ok) return;
+      const body = await response.json();
+      if (stopped || !Array.isArray(body?.daily)) return;
+      history = body;
+      historyRevision = revision;
+      emitModel();
+    } catch (_) {
+      // Keep the preview.
+    } finally {
+      historyLoading = false;
+    }
   }
 
   function emitStatus(error) {
@@ -82,6 +113,7 @@ function runBridge({
     latest = payload.stats;
     retryMs = RETRY_MIN_MS;
     emitModel();
+    refreshHistory(String(latest.historyRevision ?? ''));
   }
 
   async function connect() {
@@ -92,8 +124,7 @@ function runBridge({
       stallTimer = setTimeout(() => controller.abort(new Error('stream stalled')), STALL_MS);
     };
     try {
-      const headers = { accept: 'text/event-stream' };
-      if (secret) headers.authorization = `Bearer ${secret}`;
+      const headers = authHeaders({ accept: 'text/event-stream' });
       armStall();
       const response = await fetchImpl(`${base}/api/stats/stream`, { headers, signal: controller.signal });
       if (response.status === 401) throw new Error('unauthorized: check TOKEN_MONITOR_SECRET');

@@ -67,6 +67,26 @@ test('the bridge prints a model for the snapshot and for each ingest', async (t)
   assert.equal(lines.at(-1).model.devices[0].name, 'omarchy');
 });
 
+test('the bridge fetches the full history with the secret and passes it on', async (t) => {
+  const { url } = await startHub(t, 'right');
+  const historyCalls = [];
+  const fetchImpl = (target, init) => {
+    if (String(target).endsWith('/api/history')) {
+      historyCalls.push(init.headers.authorization);
+      const body = { daily: [{ date: '2026-01-05', tokens: 5, cost: 0 }], summary: { activeDays: 77 } };
+      return Promise.resolve(new Response(JSON.stringify(body)));
+    }
+    return fetch(target, init);
+  };
+  const lines = [];
+  const stop = runBridge({ hubUrl: url, secret: 'right', write: (line) => lines.push(line), fetchImpl });
+  t.after(stop);
+
+  await waitFor(() => lines.at(-1)?.model?.activity.activeDaysText === '77 active days');
+  // One snapshot, one revision: fetched once.
+  assert.deepEqual(historyCalls, ['Bearer right']);
+});
+
 test('the bridge reports a wrong secret as a status line and keeps retrying', async (t) => {
   const { url } = await startHub(t, 'right');
   const lines = [];

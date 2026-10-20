@@ -1,10 +1,13 @@
 # Omarchy bar widget
 
-On [Omarchy](https://omarchy.org) 4 the top bar is `omarchy-shell`, a Quickshell host that loads bar widgets as plugins. `omarchy-plugin/` is a Token Monitor bar widget for it: one icon in the bar, like Omarchy's own, and a panel with today / month / all-time totals, AI tool limits, tool, model and project breakdowns, a 30-day chart, recent sessions and devices. It sits next to Omarchy's built-in `omarchy.agents` widget and covers every tool and device the Token Monitor hub knows about.
+On [Omarchy](https://omarchy.org) 4 the top bar is `omarchy-shell`, a Quickshell host that loads bar widgets as plugins. `omarchy-plugin/` is a Token Monitor bar widget for it: one icon in the bar, like Omarchy's own, and a panel that follows the Electron widget's home view: today / month / all-time totals, AI tool limits, tool, model and project breakdowns, a rolling-year activity grid and trend line, recent sessions with their model and prompt-cache countdown, and devices. It sits next to Omarchy's built-in `omarchy.agents` widget and covers every tool and device the Token Monitor hub knows about.
 
 ```
 agent (collects) ──POST /api/ingest──▶ hub :17321 ──SSE /api/stats/stream──▶ bridge.js ──JSON lines──▶ omarchy-shell widget
+                                                  └──GET /api/history (on revision change)──┘
 ```
+
+The stats snapshot carries only a 30-day history preview, so the bridge also reads `/api/history` for the activity grid: once at start and again whenever the snapshot's `historyRevision` moves. Until that answers, and if it fails, the panel draws from the preview.
 
 The Electron widget is untouched; the bar widget is one more Hub client.
 
@@ -54,7 +57,7 @@ The widget has one setting, the period the panel opens on: `omarchy bar set toke
 
 ## Why a Node bridge
 
-QML cannot load the shared UMD modules in `src/shared/`: its global object is read-only and they `require` one another. Reimplementing their labels, limit wording and number formatting in QML would duplicate exactly the display rules every other surface shares. `src/quickshell/bridge.js` follows the Hub stream instead, and `src/quickshell/dashboardModel.js` turns each snapshot into display rows with those shared helpers, under node:test. The QML lays out what it receives and computes nothing but geometry. Keep it that way: a new figure in the panel belongs in `dashboardModel.js` first.
+QML cannot load the shared UMD modules in `src/shared/`: its global object is read-only and they `require` one another. Reimplementing their labels, limit wording and number formatting in QML would duplicate exactly the display rules every other surface shares. `src/quickshell/bridge.js` follows the Hub stream instead, and `src/quickshell/dashboardModel.js` turns each snapshot into display rows with those shared helpers, under node:test. The activity grid, trend path and session model label come from the Electron renderer's own modules (`usageCharts.js`, `homeOverview.js`, `sessionRows.js`), which are UMD and DOM-free, so the panel and the Electron home view lay them out from the same rules; the trend reaches QML as a path in 0..1 units that it only scales. The QML lays out what it receives and computes nothing but geometry. Keep it that way: a new figure in the panel belongs in `dashboardModel.js` first.
 
 The bridge also keeps the Hub secret off the command line: it reads `.env` itself and sends the secret as a header, because every argument of a process in the session is visible in `ps`.
 
