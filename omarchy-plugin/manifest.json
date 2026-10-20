@@ -1,8 +1,8 @@
 {
   "schemaVersion": 1,
   "id": "io.github.88srzh.token-monitor",
-  "name": "Token Monitor",
-  "version": "1.1.0",
+  "name": "Token Monitor Hub",
+  "version": "1.1.1",
   "author": "88srzh",
   "license": "MIT",
   "description": "Token usage, cost and AI tool limits for your AI coding tools across all your devices, from a Token Monitor hub.",
@@ -11,7 +11,7 @@
     "barWidget": "Panel.qml"
   },
   "barWidget": {
-    "displayName": "Token Monitor",
+    "displayName": "Token Monitor Hub",
     "description": "One bar icon and one panel: today, month and all-time usage, AI tool limits, tools, models, a rolling-year activity grid and trend line, sessions, projects and devices.",
     "category": "AI",
     "aliases": ["tokens", "token-monitor", "usage"],
