@@ -23,7 +23,7 @@ git clone https://github.com/88srzh/token-monitor-omarchy.git ~/.local/share/tok
 ~/.local/share/token-monitor/scripts/omarchy/install.sh
 ```
 
-The script is idempotent; re-run it after `git pull`. It changes only these things:
+The script is idempotent; re-run it after `git pull`. When the widget's files changed, it restarts `omarchy-shell` (`omarchy-restart-shell`): the shell does reload a changed plugin, but its component-cache clear does nothing when called from QML, so the reload keeps showing the old panel. It changes only these things:
 
 | What | Where |
 |---|---|
@@ -65,4 +65,5 @@ The bridge also keeps the Hub secret off the command line: it reads `.env` itsel
 
 - **Icon dimmed, "No data" in the panel.** Check the services with `systemctl --user status token-monitor-hub token-monitor-agent` and their logs with `journalctl --user -u token-monitor-agent -f`. The panel header shows the bridge's last error.
 - **"not installed" or "bridge exited".** `local.json` is missing or points at a Node or checkout that moved; re-run the installer.
+- **The panel still looks like the previous version after an update.** The shell is holding the old QML; run `omarchy-restart-shell`. The shell log shows it as a warning from a line of `Panel.qml` that no longer matches the file on disk.
 - **No icon in the bar.** `omarchy plugin list` should show `token-monitor` as enabled; `omarchy plugin enable token-monitor --section right` places it. QML errors show in the shell's log: `quickshell log -p "$OMARCHY_PATH/shell" --any-display --tail 200 | grep -i token-monitor`.
