@@ -69,7 +69,9 @@ test('the widget README installs and updates a pinned backend commit', () => {
   const blocks = readme.match(/```bash\n[\s\S]*?```/g).filter((block) => block.includes('install.sh') && !block.includes('--uninstall'));
   assert.equal(blocks.length, 2);
   for (const block of blocks) {
-    assert.match(block, /checkout --detach @BACKEND_REV@\n[^\n]*install\.sh/);
+    // The marketplace scanner only counts a pin that stays in one && chain
+    // up to the installer, so a failed checkout cannot fall through to it.
+    assert.match(block, /checkout --detach @BACKEND_REV@ \\\n\s*&& [^\n]*install\.sh/);
     assert.doesNotMatch(block, /git pull/);
   }
   const publish = fs.readFileSync(path.join(root, 'scripts', 'omarchy', 'publish-plugin.sh'), 'utf8');

@@ -18,15 +18,15 @@ The agent's first start downloads the pinned tokscale binary it reads usage with
 
 ## Install
 
-The installer sets up the backend and adds this widget. The checkout is pinned to the backend commit this version of the widget was published with:
+The installer sets up the backend and adds this widget. The checkout is pinned to the backend commit this version of the widget was published with, and the steps are chained with `&&` so the installer never runs on an unpinned checkout:
 
 ```bash
-git clone https://github.com/88srzh/token-monitor-omarchy.git ~/.local/share/token-monitor
-git -C ~/.local/share/token-monitor checkout --detach @BACKEND_REV@
-~/.local/share/token-monitor/scripts/omarchy/install.sh
+git clone https://github.com/88srzh/token-monitor-omarchy.git ~/.local/share/token-monitor \
+  && git -C ~/.local/share/token-monitor checkout --detach @BACKEND_REV@ \
+  && ~/.local/share/token-monitor/scripts/omarchy/install.sh
 ```
 
-If you added the widget first with `omarchy plugin add https://github.com/88srzh/omarchy-token-monitor.git`, run the same three commands: the installer keeps the widget where it is and points it at the backend. Until then the icon is dimmed and the panel says "backend not installed".
+If you added the widget first with `omarchy plugin add https://github.com/88srzh/omarchy-token-monitor.git`, run the same command: the installer keeps the widget where it is and points it at the backend. Until then the icon is dimmed and the panel says "backend not installed".
 
 The installer writes these, and nothing else:
 
@@ -44,10 +44,10 @@ The installer writes these, and nothing else:
 Update the widget, then move the backend to the commit named here, which is the one the updated widget was published with:
 
 ```bash
-omarchy plugin update io.github.88srzh.token-monitor
-git -C ~/.local/share/token-monitor fetch origin
-git -C ~/.local/share/token-monitor checkout --detach @BACKEND_REV@
-~/.local/share/token-monitor/scripts/omarchy/install.sh
+omarchy plugin update io.github.88srzh.token-monitor \
+  && git -C ~/.local/share/token-monitor fetch origin \
+  && git -C ~/.local/share/token-monitor checkout --detach @BACKEND_REV@ \
+  && ~/.local/share/token-monitor/scripts/omarchy/install.sh
 ```
 
 The installer restarts `omarchy-shell` when the widget changed. If you update with `omarchy plugin update` alone, run `omarchy-restart-shell` afterwards: the shell reloads a changed plugin but keeps showing the previous panel until it restarts.
