@@ -10,7 +10,7 @@ This is an unofficial widget, built on [Javis603/token-monitor](https://github.c
 
 The widget only draws. The data comes from a Token Monitor backend that runs on your machine, from the [token-monitor-omarchy](https://github.com/88srzh/token-monitor-omarchy) checkout:
 
-- a hub on `127.0.0.1:17321` and a headless agent that collects your usage, installed as systemd user services (`token-monitor-hub`, `token-monitor-agent`);
+- a hub on `127.0.0.1:17321` and a headless agent that collects your usage, installed as systemd user services (`token-monitor-hub`, `token-monitor-agent`). The hub requires a random secret the installer generates into an owner-only `.env`, so other users of the machine cannot read or change its records;
 - a Node.js bridge the widget starts, which follows the hub and hands the panel ready-made rows;
 - Node.js 22.15 or newer (`mise use -g node@lts`) and git.
 
@@ -32,6 +32,8 @@ The installer writes these, and nothing else:
 | What | Where |
 |---|---|
 | Runtime dependencies, if missing | `npm ci --omit=dev` in the checkout |
+| A random hub secret and a loopback host, if not set, in an owner-only file | `.env` in the checkout (`TOKEN_MONITOR_SECRET`, `TOKEN_MONITOR_HOST=127.0.0.1`, mode 600) |
+| The hub's data directory closed to other users | `data/` in the checkout (mode 700) |
 | Hub and agent user services, enabled and started | `~/.config/systemd/user/token-monitor-{hub,agent}.service` |
 | Where the widget finds the checkout and Node | `~/.config/token-monitor-omarchy/backend.json` |
 | This widget, through `omarchy plugin add`, placed in the bar's right section on first install | `~/.config/omarchy/plugins/io.github.88srzh.token-monitor/`, `~/.config/omarchy/shell.json` |
