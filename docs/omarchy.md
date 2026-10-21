@@ -29,8 +29,8 @@ The script is idempotent; re-run it after `git pull`. It adds the widget from it
 |---|---|
 | Runtime dependencies, if missing | `npm ci --omit=dev` in the checkout |
 | A random hub secret and a loopback host, if not set, in an owner-only file | `.env` in the checkout (`TOKEN_MONITOR_SECRET`, `TOKEN_MONITOR_HOST=127.0.0.1`, mode 600) |
-| The hub's data directory closed to other users | `data/` in the checkout (mode 700) |
 | Hub and agent as user services, enabled and started | `~/.config/systemd/user/token-monitor-{hub,agent}.service` |
+| Usage data closed to other users, by each service before it starts and through its `UMask=0077` | `data/` in the checkout and `~/.config/Token Monitor/` (the agent's session archive and its SQLite sidecars), mode 700 with owner-only files |
 | The checkout path and Node binary, for the widget | `~/.config/token-monitor-omarchy/backend.json` |
 | The widget, a clone of its repository | `~/.config/omarchy/plugins/io.github.88srzh.token-monitor/` |
 | The widget enabled in the bar's right section, on first install | `~/.config/omarchy/shell.json`, through `omarchy plugin enable` |

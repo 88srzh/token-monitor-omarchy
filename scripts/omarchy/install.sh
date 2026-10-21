@@ -70,12 +70,12 @@ fi
 # The hub, agent and bridge share an owner-only secret from .env: without one
 # the hub answers every local user, loopback or not. The host is pinned to
 # loopback alongside it, since a hub with a secret otherwise binds every
-# interface. The data directory is closed to other users as well.
+# interface.
 "$node" "$repo/scripts/omarchy/hubSecret.js" provision "$repo/.env"
-mkdir -p "$repo/data"
-chmod 700 "$repo/data"
 
-# Services, which refuse to start without the secret. Node's directory goes on
+# Services, which refuse to start without the secret. Before starting, each
+# closes the usage data directories to other users (privateData.js), and its
+# UMask keeps the files it creates there owner-only. Node's directory goes on
 # PATH because the user manager starts with a minimal one, and Restart=always
 # because both exit 0 on SIGTERM.
 mkdir -p "$unit_dir"
@@ -87,7 +87,9 @@ Description=Token Monitor hub
 [Service]
 WorkingDirectory=$repo
 Environment=PATH=$node_dir:/usr/local/bin:/usr/bin:/bin
+UMask=0077
 ExecStartPre=$node $repo/scripts/omarchy/hubSecret.js require
+ExecStartPre=$node $repo/scripts/omarchy/privateData.js
 ExecStart=$node $repo/src/hub/server.js
 Restart=always
 RestartSec=5
@@ -104,7 +106,9 @@ After=token-monitor-hub.service
 [Service]
 WorkingDirectory=$repo
 Environment=PATH=$node_dir:/usr/local/bin:/usr/bin:/bin
+UMask=0077
 ExecStartPre=$node $repo/scripts/omarchy/hubSecret.js require
+ExecStartPre=$node $repo/scripts/omarchy/privateData.js
 ExecStartPre=$node $repo/scripts/ensure-vendored-tokscale.js
 ExecStart=$node $repo/src/agent/agent.js
 Restart=always
