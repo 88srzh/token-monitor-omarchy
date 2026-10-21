@@ -20,7 +20,7 @@ const fixed = { randomSecret: () => 'generated' };
 
 test('a missing .env gets an owner-only secret and a loopback host', () => {
   const file = tempEnv();
-  assert.deepEqual(provisionEnv(file, fixed), ['TOKEN_MONITOR_SECRET', 'TOKEN_MONITOR_HOST']);
+  assert.deepEqual(provisionEnv(file, fixed).added, ['TOKEN_MONITOR_SECRET', 'TOKEN_MONITOR_HOST']);
   assert.deepEqual(dotenv.parse(fs.readFileSync(file)), { TOKEN_MONITOR_SECRET: 'generated', TOKEN_MONITOR_HOST: '127.0.0.1' });
   assert.equal(fs.statSync(file).mode & 0o777, 0o600);
 });
@@ -38,7 +38,9 @@ test('an empty secret copied from .env.example is filled in place', () => {
 
 test('a secret and host the owner set are kept', () => {
   const file = tempEnv('TOKEN_MONITOR_SECRET="mine"\nTOKEN_MONITOR_HOST=0.0.0.0\n');
-  assert.deepEqual(provisionEnv(file, fixed), []);
+  // tempEnv leaves the file readable by others, so the kept secret is flagged.
+  assert.deepEqual(provisionEnv(file, fixed), { added: [], exposedSecret: true });
+  assert.deepEqual(provisionEnv(file, fixed), { added: [], exposedSecret: false });
   assert.deepEqual(dotenv.parse(fs.readFileSync(file)), { TOKEN_MONITOR_SECRET: 'mine', TOKEN_MONITOR_HOST: '0.0.0.0' });
   assert.equal(fs.statSync(file).mode & 0o777, 0o600);
 });
@@ -60,4 +62,20 @@ test('both services refuse to start without the secret', () => {
   const install = fs.readFileSync(path.join(__dirname, '..', '..', 'scripts', 'omarchy', 'install.sh'), 'utf8');
   const guards = install.match(/^ExecStartPre=\$node \$repo\/scripts\/omarchy\/hubSecret\.js require$/gm) || [];
   assert.equal(guards.length, 2);
+});
+
+test('a new secret never enters the readable file it replaces', () => {
+  const file = tempEnv('TOKEN_MONITOR_PORT=17321\n');
+  const before = fs.statSync(file).ino;
+  // Another user's descriptor opened before the migration.
+  const fd = fs.openSync(file, 'r');
+  try {
+    provisionEnv(file, fixed);
+    assert.notEqual(fs.statSync(file).ino, before);
+    assert.equal(fs.readFileSync(fd, 'utf8'), 'TOKEN_MONITOR_PORT=17321\n');
+  } finally {
+    fs.closeSync(fd);
+  }
+  assert.equal(fs.statSync(file).mode & 0o777, 0o600);
+  assert.deepEqual(fs.readdirSync(path.dirname(file)), ['.env']);
 });
