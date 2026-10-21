@@ -62,15 +62,11 @@ The widget has one setting, the period the panel opens on: `omarchy bar set io.g
 
 `omarchy-shell` watches `~/.config/omarchy/plugins/` recursively and reloads every plugin on any write under it, and the Hub writes into the checkout on every ingest, so the checkout cannot be the plugin folder. Omarchy also refuses symlinks inside plugin folders, and `omarchy plugin add` and the marketplace take one repository with `manifest.json` at its root. So `omarchy-plugin/` is published on its own, and the installer writes `backend.json` with the checkout path and the Node binary, outside the plugin folder, for `Feed.qml` to start the bridge from. The widget's reconnect (right click, `r`, the `refresh` IPC call) rereads it.
 
-`omarchy-plugin/` stays the source: its tests run here against the bridge and model it depends on. It is published to the plugin repository as a subtree of `main`, which keeps that repository's history a fast-forward of the last publish, as `omarchy plugin update` requires:
+`omarchy-plugin/` stays the source: its tests run here against the bridge and model it depends on. `scripts/omarchy/publish-plugin.sh` publishes it from a clean `main` that matches `origin/main`: it copies the folder into a clone of the plugin repository, replaces `@BACKEND_REV@` in its README with the full SHA of that `main` commit, and pushes one commit on top, so `omarchy plugin update` can fast-forward.
 
-```bash
-git subtree split --prefix=omarchy-plugin -b omarchy-plugin-publish main
-git push git@github.com:88srzh/omarchy-token-monitor.git omarchy-plugin-publish:main
-git branch -D omarchy-plugin-publish
-```
+The SHA is there for the marketplace review: the widget's README installs and updates the backend by checking out that exact commit in detached mode rather than running whatever the default branch holds, so a listing reviewed at one plugin commit installs the backend revision reviewed with it. A widget and the backend from the same `main` commit also always match. This checkout's own install (`git pull` on `main`, then the installer) is unaffected.
 
-Publish after merging a change to `omarchy-plugin/`, and before anyone re-runs the installer, which pulls the published widget rather than the checkout's copy. Every published commit leaves the marketplace listing "Update unverified" until it is submitted again through the marketplace's plugin verification form. Keep the plugin id: marketplace ids are permanent, and the installer, `Feed.qml`'s `backend.json` path and the tests all name it.
+Publish after merging a change to `omarchy-plugin/` or to anything the backend runs, and before anyone re-runs the installer, which pulls the published widget rather than the checkout's copy. Every published commit leaves the marketplace listing "Update unverified" until it is submitted again through the marketplace's plugin verification form. Keep the plugin id: marketplace ids are permanent, and the installer, `Feed.qml`'s `backend.json` path and the tests all name it.
 
 ## Why a Node bridge
 

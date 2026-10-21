@@ -61,3 +61,17 @@ test('the period setting offers exactly the periods the model builds', () => {
   assert.deepEqual(schema.options, Object.keys(buildDashboardModel({}).periods));
   assert.equal(manifest.barWidget.defaults.period, schema.defaultValue);
 });
+
+// The marketplace reviews the backend revision the widget installs, so the
+// README pins it; publish-plugin.sh fills in the SHA.
+test('the widget README installs and updates a pinned backend commit', () => {
+  const readme = fs.readFileSync(path.join(pluginDir, 'README.md'), 'utf8');
+  const blocks = readme.match(/```bash\n[\s\S]*?```/g).filter((block) => block.includes('install.sh') && !block.includes('--uninstall'));
+  assert.equal(blocks.length, 2);
+  for (const block of blocks) {
+    assert.match(block, /checkout --detach @BACKEND_REV@\n[^\n]*install\.sh/);
+    assert.doesNotMatch(block, /git pull/);
+  }
+  const publish = fs.readFileSync(path.join(root, 'scripts', 'omarchy', 'publish-plugin.sh'), 'utf8');
+  assert.ok(publish.includes('s/@BACKEND_REV@/$rev/g'));
+});

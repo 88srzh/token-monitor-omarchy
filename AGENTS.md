@@ -13,6 +13,7 @@ npm test           # run the node:test suite (node --test "tests/**/*.test.js")
 npm run lint       # ESLint flat config (eslint.config.js)
 npm run verify     # lint + test (single local entry point)
 scripts/omarchy/install.sh   # Omarchy 4: bar widget plugin + hub/agent user services (--uninstall reverses)
+scripts/omarchy/publish-plugin.sh   # publish omarchy-plugin/ to its own repo, pinning the backend to main's SHA
 ```
 
 Automated verification is `npm run verify`; CI (`.github/workflows/ci.yml`) runs lint + test on push/PR across Node 22 & 24. The toolchain (ESLint 10 + the node:test glob) needs Node 22.13+ and DSH session decoding needs `zlib.zstdDecompressSync` (Node 22.15+), which is why `engines.node` is `>=22.15.0`.
