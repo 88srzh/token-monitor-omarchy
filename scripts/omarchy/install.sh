@@ -67,8 +67,17 @@ if [ ! -d "$repo/node_modules" ]; then
     (cd "$repo" && npm ci --omit=dev)
 fi
 
-# Services. Node's directory goes on PATH because the user manager starts with
-# a minimal one, and Restart=always because both exit 0 on SIGTERM.
+# The hub, agent and bridge share an owner-only secret from .env: without one
+# the hub answers every local user, loopback or not. The host is pinned to
+# loopback alongside it, since a hub with a secret otherwise binds every
+# interface. The data directory is closed to other users as well.
+"$node" "$repo/scripts/omarchy/hubSecret.js" provision "$repo/.env"
+mkdir -p "$repo/data"
+chmod 700 "$repo/data"
+
+# Services, which refuse to start without the secret. Node's directory goes on
+# PATH because the user manager starts with a minimal one, and Restart=always
+# because both exit 0 on SIGTERM.
 mkdir -p "$unit_dir"
 node_dir=$(dirname "$node")
 cat > "$unit_dir/token-monitor-hub.service" <<EOF
@@ -78,6 +87,7 @@ Description=Token Monitor hub
 [Service]
 WorkingDirectory=$repo
 Environment=PATH=$node_dir:/usr/local/bin:/usr/bin:/bin
+ExecStartPre=$node $repo/scripts/omarchy/hubSecret.js require
 ExecStart=$node $repo/src/hub/server.js
 Restart=always
 RestartSec=5
@@ -94,6 +104,7 @@ After=token-monitor-hub.service
 [Service]
 WorkingDirectory=$repo
 Environment=PATH=$node_dir:/usr/local/bin:/usr/bin:/bin
+ExecStartPre=$node $repo/scripts/omarchy/hubSecret.js require
 ExecStartPre=$node $repo/scripts/ensure-vendored-tokscale.js
 ExecStart=$node $repo/src/agent/agent.js
 Restart=always
@@ -103,7 +114,9 @@ RestartSec=10
 WantedBy=default.target
 EOF
 systemctl --user daemon-reload
-systemctl --user enable --now $units
+systemctl --user enable $units
+# A restart rather than `--now`, so running services pick up a new secret.
+systemctl --user restart $units
 
 # The widget finds this checkout and Node through backend.json.
 mkdir -p "$(dirname "$backend_config")"

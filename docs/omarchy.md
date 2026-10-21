@@ -28,6 +28,8 @@ The script is idempotent; re-run it after `git pull`. It adds the widget from it
 | What | Where |
 |---|---|
 | Runtime dependencies, if missing | `npm ci --omit=dev` in the checkout |
+| A random hub secret and a loopback host, if not set, in an owner-only file | `.env` in the checkout (`TOKEN_MONITOR_SECRET`, `TOKEN_MONITOR_HOST=127.0.0.1`, mode 600) |
+| The hub's data directory closed to other users | `data/` in the checkout (mode 700) |
 | Hub and agent as user services, enabled and started | `~/.config/systemd/user/token-monitor-{hub,agent}.service` |
 | The checkout path and Node binary, for the widget | `~/.config/token-monitor-omarchy/backend.json` |
 | The widget, a clone of its repository | `~/.config/omarchy/plugins/io.github.88srzh.token-monitor/` |
@@ -43,7 +45,7 @@ The agent's first start downloads the pinned tokscale binary (`ensure:tokscale`)
 
 ## Configure
 
-Hub, agent and bridge all read `.env` in the checkout (copy `.env.example`); see [configuration](configuration.md#headless-agent--hub-env). With no `.env` the Hub listens on `127.0.0.1:17321` without a secret and the agent and bridge use that address, which is the right setup for one machine. To show other devices, give the Hub a `TOKEN_MONITOR_SECRET` and point their agents or widgets at it. To follow an existing Hub or Worker instead, set `TOKEN_MONITOR_HUB_URL` and `TOKEN_MONITOR_SECRET` and disable the local hub service.
+Hub, agent and bridge all read `.env` in the checkout (copy `.env.example`); see [configuration](configuration.md#headless-agent--hub-env). The installer gives every install a secret: without one the Hub accepts any request, and listening on `127.0.0.1` only keeps other machines out, not other users of this one, who could read the device records or delete them. It writes a random `TOKEN_MONITOR_SECRET` into `.env` when none is set, makes the file readable by its owner only, and pins `TOKEN_MONITOR_HOST=127.0.0.1`, because a Hub with a secret otherwise listens on every interface. The hub and agent services refuse to start while `.env` gives no secret (`scripts/omarchy/hubSecret.js require`). The agent and bridge read the same file, so one machine needs nothing more. To show other devices, set `TOKEN_MONITOR_HOST=0.0.0.0` and point their agents or widgets at this Hub with its secret. To follow an existing Hub or Worker instead, set `TOKEN_MONITOR_HUB_URL` and that Hub's `TOKEN_MONITOR_SECRET` (replacing the generated one) and disable the local hub service.
 
 After editing `.env`, restart the services (`systemctl --user restart token-monitor-hub token-monitor-agent`) and the bridge (right-click the bar icon, or press `r` in the panel).
 
