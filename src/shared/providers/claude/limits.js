@@ -13,7 +13,7 @@ const { BROWSER_USER_AGENT } = require('../../browserUserAgent');
 const { normalizeLimitProvider } = require('../../limits/core');
 const { abortError } = require('../../probeDeadline');
 const { hashKey } = require('../../hashKey');
-const { claudeProbeDir } = require('./probe');
+const { prepareClaudeProbeDir } = require('./probe');
 const {
   PLAN_LABEL_ALIASES,
   TOKEN_MONITOR_USER_AGENT,
@@ -1717,10 +1717,6 @@ timeout = float(os.environ.get("TOKEN_MONITOR_CLAUDE_CLI_TIMEOUT", "35"))
 slash_command = os.environ.get("TOKEN_MONITOR_CLAUDE_SLASH_COMMAND", "/usage")
 exit_marker = os.environ.get("TOKEN_MONITOR_CLAUDE_EXIT_MARKER_REGEX", "currentsession.*?[0-9]{1,3}(?:\\\\.[0-9]+)?%")
 exit_pattern = re.compile(exit_marker) if exit_marker else None
-os.makedirs(os.path.join(cwd, ".claude"), exist_ok=True)
-settings_path = os.path.join(cwd, ".claude", "settings.local.json")
-if not os.path.exists(settings_path):
-    open(settings_path, "w").write('{"disableDeepLinkRegistration":"disable"}\\n')
 master, slave = pty.openpty()
 fcntl.ioctl(slave, termios.TIOCSWINSZ, struct.pack("HHHH", 50, 160, 0, 0))
 proc = subprocess.Popen([cmd, "--allowed-tools", ""], stdin=slave, stdout=slave, stderr=slave, cwd=cwd, close_fds=True, start_new_session=True)
@@ -1814,8 +1810,7 @@ async function runClaudePtyProbe(slashCommand, exitMarkerRegex, deps = {}) {
   const platform = deps.platform || process.platform;
   const command = existingClaudeCommandCandidates(claudeCommandCandidates(env, platform), deps)[0];
   if (!command) throw errorWithStatus('notConfigured', 'Claude CLI not found');
-  const probeDir = claudeProbeDir(deps);
-  fs.mkdirSync(probeDir, { recursive: true });
+  const probeDir = prepareClaudeProbeDir(deps);
   const runEnv = {
     ...env,
     DISABLE_AUTOUPDATER: '1',
@@ -1906,8 +1901,7 @@ async function runClaudeUsageCli(deps = {}) {
 }
 
 function runClaudeDirectUsageCli(deps = {}) {
-  const probeDir = claudeProbeDir(deps);
-  fs.mkdirSync(probeDir, { recursive: true });
+  const probeDir = prepareClaudeProbeDir(deps);
   return runClaudeDirectCommand(
     ['/usage'],
     { ...deps, cwd: probeDir },

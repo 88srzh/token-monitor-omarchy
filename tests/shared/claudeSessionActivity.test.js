@@ -7,6 +7,7 @@ const path = require('node:path');
 const test = require('node:test');
 const activity = require('../../src/shared/providers/claude/sessionActivity');
 const linuxIdentity = require('../../src/shared/providers/claude/linuxProcessIdentity');
+const probeModule = require('../../src/shared/providers/claude/probe');
 const live = require('../../src/shared/sessionLive');
 const usage = require('../../src/shared/usage');
 const archive = require('../../src/shared/usage/sessionUsageArchive');
@@ -111,6 +112,7 @@ test('registry excludes Token Monitor probe cwd from readings and pre-token rows
   for (const platform of ['darwin', 'win32']) {
     for (const [claudeProbeDir, cwd] of [
       [undefined, path.join(os.tmpdir(), 'token-monitor-claude-probe')],
+      [undefined, probeModule.claudeProbeDir({ ...f.options, platform })],
       [probe, probe], [alias, canonical], [canonical, alias], [missing, missing]
     ]) {
       const options = { ...f.options, platform, claudeProbeDir };
