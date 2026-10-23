@@ -31,6 +31,7 @@ Only app, agent and packaging entry points run `ensure:tokscale`; install, Hub, 
 `src/shared/collector.js` owns tokscale scans and binary resolution. `clientSources.js` owns canonical host roots; `clientSourceObservations.js` derives checks and diagnostics from them, and the collector applies watch policy. Source attribution, ignore policy and exporter paths must share those roots, including through symlinks and Windows path aliases.
 
 - **Exact accounting.** Full ticks scan today, month and allTime serially to bound CPU/IO. Watch ticks scan `--today` and use `applyPeriodDelta()` against the full-scan anchor; this is exact for append-only logs. An anchor from another date forces a full scan. Changed clients share one unioned scan, so client IDs are partition keys; preserve the [partition invariants](providers/README.md#partition-invariants).
+- **Manual refresh.** Generic settings/account `{ force: true }` refreshes await limits without starting a usage tick. App and Edge Dock refresh retain full usage, History recovery and explicit self-sync: a Today delta cannot reconcile imported or corrected older usage in Month/All Time (#717). Tray-menu refresh explicitly requests its existing full usage scan. Structural settings and pricing changes retain their dedicated usage invalidation paths.
 - **Rate timing.** Use the familiar generation-speed label and explain its estimated timing basis in auxiliary copy. Use scanner-supplied matched timed-output buckets when present, with a compatibility estimate for older binaries; never apportion output by total-token coverage. Request performance timing and session/active-time spans have separate purposes. A parser timing change must preserve that distinction and invalidate its source cache; a new binary revision also requires fresh collector anchors. See the [throughput wire contract](API.md#post-apiingest).
 - **Pricing authority.** Tokscale applies overrides before aggregation. Managed model edits preserve manually authored provider-scoped rules and other top-level pricing metadata. Incomplete rate coverage preserves the original row cost except for explicit free-model overrides. Pricing content and binary revisions invalidate anchors and require full usage/history refreshes; mixed-revision scans must not publish. Fresh prices, including zero, replace archived live costs only for matching source usage; archive-only records keep their costs.
 - **Session retention.** Normal scanner rows replace the whole archived observation for the same canonical client/session and period, including lower counts and explicit zero; missing identities stay retained. Only completed three-period scans may clear Today/month for IDs still present in allTime. On watch ticks, zero-only broader-period rows require the same canonical identity in Today. Released aliases contribute one latest whole-period observation. Retention trusts scanner output and does not reconstruct corrected historical daily usage.
@@ -85,6 +86,7 @@ Failed usage reconfiguration restores the last-known-good runtime and retries th
 - `limits/collector.js` dispatches through `limits/registry.js`; require-free provider `account.js` leaves declare account/credential metadata. Main-process `electron/limits/accountSettings.js` binds normalization and redaction. Forms receive serializable display/action DTOs, never store paths, resolvers or secrets.
 - Only registry-declared forms may save credentials. Probes use the injected transport with write-backs disabled. Reject incomplete, invalid or unauthorized drafts; persist a probe-renewed credential instead of its stale input. Saves use `applySettingsPatch()` for ordinary invalidation/reconfiguration, and same-provider revisions discard superseded probes.
 - Missing identities in mixed results retain last-good data. Only explicit internal removal markers retire known accounts; consume those before normalization so they never enter the wire record.
+- Account-keyed probe results may supply internal `invalidateCachedWindowLabels` to discard specific last-good windows whose interpretation is no longer trustworthy. Consume it before normalization; it never enters snapshots or the wire record. When such a partial result supplies current windows, retain non-invalidated cached windows absent from it. If any cached windows remain, the combined row keeps the old `updatedAt` and reports `unavailable`: row-level freshness must not promote retained values to new measurements. Retry and burn sampling use the committed status. Ordinary transient failures keep the remaining last-good windows, and generic failures cannot invalidate a provider lane.
 
 `limits/core.js` owns normalization. It has no directory index because the Worker imports it as ESM. `limits/providers.js` and `limits/balanceDisplay.js` also support renderer script loading; keep that portable boundary.
 
@@ -111,6 +113,18 @@ Sessions, Home and Edge Dock group the complete member set before applying displ
 ## Session title display
 
 `sessionTitlesEnabled` defaults on and affects Electron presentation only. `src/electron/sessionTitleDisplay.js` hides titles from snapshots, all-time pulls and detail headings without changing collection, metadata caches or local archives. Sync consent is independent, defaults off, and requires the [shared sync protocol](#shared-sync-content).
+
+## Windows Edge Dock material
+
+Windows 11 Edge Dock uses a single helper with HostBackdrop clipped to the renderer's curves; HWND-wide Acrylic/Accent cannot preserve the concave outline. Electron owns input. Native underlays stay disabled, nonactivating and directly below their content windows.
+
+Share renderer curves at physical display scale and position against `GetWindowRect`, not rounded Electron DIP bounds. Unchanged hover updates must not re-show underlays. Lower the tinted fallback only after native attachment succeeds; a failed generation retries only after all its surfaces are disposed. EOF, parent exit and content-window closure must remove native windows.
+
+Local Windows development requires `npm run build:windows-dock`. Packaging builds the helper with the OS .NET compiler/WinRT metadata and includes it outside ASAR, so Windows artifacts require a Windows build host. User-facing material settings are covered in [configuration](configuration.md#widget-gui).
+
+## Native tooltips
+
+Electron surfaces and the system tray do not show OS-native tooltips on any platform. Use accessible labels for controls and descriptions for supplemental metadata rather than HTML `title` attributes; SVG chart descriptions use `<desc>`. Keep app-rendered detail tooltips for quota and chart information. Reduced-motion overflow text remains manually scrollable instead of falling back to a native tooltip. This also avoids native tooltip windows remaining over other apps when a floating surface hides or changes input handling.
 
 ## Notch presentation
 
@@ -150,9 +164,15 @@ Manual device removal requires a known remote device marked stale in main's late
 
 ## Data flow contract
 
+**Node Hub persistence.** Saves are synchronous by default; opt-in batching uses a fixed first-upload deadline without delaying API/SSE updates. Snapshots use compact JSON and atomic replacement. Device deletion, subscriptions, shared settings/title policies and startup title cleanup persist immediately; preserve their rollback contracts. Failed saves retain pending data for retry. File readers can lag and abrupt termination can lose pending updates; see [configuration](configuration.md) for options and operational tradeoffs.
+
+**Node Hub shutdown.** `stop()` closes HTTP/direct-ingest admission before ending response-owned SSE streams, flushes before draining admitted HTTP bodies, and flushes again afterward. Force-close lingering connections after the drain timer; event-loop load can delay timers, so they are not hard bounds. Concurrent stops share completion; final-save failures reject without discarding pending data. Clear batch timers on stop and re-arm retained data on successful restart. Standalone signal handlers use this lifecycle and report failures. The [API reference](API.md) defines client-visible shutdown behavior.
+
 `collectUsageOnce()` supplies usage. `DeviceState` combines it with the runtime envelope and limits; limits-only updates retain the usage `updatedAt`, and cold previews wait for a complete baseline. Hubs normalize device records with `normalizeDeviceRecord()` and aggregate on read with `aggregateDevices()`. Neither Hub needs provider credentials. The [API reference](API.md) defines the common Node/Worker wire contract.
 
 Settings keys, env vars, CLI flags, endpoints and wire fields have external users: treat incompatible changes as breaking and plan migration. Stale devices intentionally remain in stats with `stale: true`; they are not silently deleted.
+
+SSE broadcasts serialize each required frame once per fan-out; the Worker also encodes each frame once. Timestamp-only ingest updates send `freshness` to capable clients and full `stats` to legacy clients. Explicit mutation broadcasts force full stats even when the content key is unchanged. Initial snapshots remain per connection.
 
 ## Shared subscriptions
 

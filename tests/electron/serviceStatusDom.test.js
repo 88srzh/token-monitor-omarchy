@@ -57,7 +57,7 @@ test('the status description line leads with the active incident headline', () =
 test('the meta line shows an affected-component count, not the verbose name list', () => {
   const app = readRendererFile('app.js');
   // The component names made the meta line overflow; the full list now lives only
-  // in the row tooltip (meta.title), so the dedicated name-joining helper is gone.
+  // in the accessible row metadata, so the dedicated name-joining helper is gone.
   assert.doesNotMatch(app, /function serviceStatusComponentText/);
   const metaBody = functionBody(app, 'serviceStatusMeta', 'visibleServiceProviderIds');
   // A short count keeps the real scope visible (an incident title can understate
@@ -250,8 +250,8 @@ test('Home limit provider settings expand with the shared accordion transition',
   const app = readRendererFile('app.js');
   const css = readRendererFile('styles.css');
   const renderHomeSettingsList = functionBody(app, 'renderHomeSettingsList', 'renderTrendSettingsList');
-  assert.match(renderHomeSettingsList, /homeLimitProviderContainer/);
-  assert.match(renderHomeSettingsList, /accordion-animated-container\$\{state\.homeLimitSettingsExpanded \? '' : ' hidden'\}/);
+  assert.match(app, /limits: \['homeLimitSettingsExpanded', 'homeLimitProviderContainer'\]/);
+  assert.match(renderHomeSettingsList, /accordion-animated-container\$\{state\[subgroup\[0\]\] \? '' : ' hidden'\}/);
   assert.match(renderHomeSettingsList, /accordion-animation-inner/);
   assert.match(renderHomeSettingsList, /togglePreferenceSubgroup\(HOME_MODULE_SUBGROUPS, '\.home-module-preference-row', id\)/);
   const sharedExpansion = functionBody(app, 'setPreferenceSubgroupsExpanded', 'togglePreferenceSubgroup');
@@ -308,7 +308,7 @@ test('view switcher preserves click-to-cycle and direct selection without crowdi
   assert.doesNotMatch(css, /@keyframes viewSwitcherMenuIn/);
   assert.doesNotMatch(css, /@keyframes viewSwitcherMenuOut/);
   assert.match(css, /@media \(prefers-reduced-motion: reduce\)[\s\S]*\.view-switcher-menu/);
-  assert.match(cssRule(css, '.view-switcher-menu-item'), /grid-template-columns:\s*16px minmax\(0, 1fr\)/);
+  assert.match(cssRule(css, '.view-switcher-menu-item'), /grid-template-columns:\s*15px minmax\(0, 1fr\)/);
   assert.doesNotMatch(css, /\.view-switcher-menu-item\.is-current::after/);
   assert.match(cssRule(css, '.utility-actions'), /flex:\s*0 0 34px/);
   assert.match(cssRule(css, '.utility-actions .refresh-button'), /position:\s*absolute/);
@@ -326,7 +326,7 @@ test('Home-launched secondary views expose an accessible return action', () => {
   const setBreakdownBody = functionBody(app, 'setBreakdown', 'renderBreakdownChange');
 
   assert.match(html, /id="viewBackRow" class="view-back-row hidden"/);
-  assert.match(html, /id="backHomeButton"[^>]*data-i18n-title="views\.backHome"[^>]*data-i18n-aria-label="views\.backHome"/);
+  assert.match(html, /id="backHomeButton"[^>]*data-i18n-aria-label="views\.backHome"/);
   assert.match(html, /class="back-home-icon" aria-hidden="true"><\/span>/);
   assert.doesNotMatch(html, /class="back-home-icon"[^>]*>←<\/span>/);
   assert.match(app, /state\.homeReturnVisible = false/);
