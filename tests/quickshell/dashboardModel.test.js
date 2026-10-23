@@ -4,8 +4,13 @@ const assert = require('node:assert/strict');
 const test = require('node:test');
 
 const { buildDashboardModel, durationText } = require('../../src/quickshell/dashboardModel');
+const { localDayKey } = require('../../src/electron/renderer/usageCharts');
 
 const NOW = Date.parse('2026-10-19T12:00:00.000Z');
+// The grid keys days by local date, which is already Oct 20 at UTC+13 and up.
+const TODAY = localDayKey(new Date(NOW));
+const YESTERDAY = localDayKey(new Date(NOW - 86_400_000));
+const TWO_DAYS_AGO = localDayKey(new Date(NOW - 2 * 86_400_000));
 
 function stats(overrides = {}) {
   return {
@@ -57,7 +62,7 @@ function stats(overrides = {}) {
       ]
     },
     historyPreview: {
-      daily: [{ date: '2026-10-19', tokens: 1500, cost: 0.25 }, { date: '2026-10-17', tokens: 3000, cost: 0.5 }],
+      daily: [{ date: TODAY, tokens: 1500, cost: 0.25 }, { date: TWO_DAYS_AGO, tokens: 3000, cost: 0.5 }],
       summary: { currentStreak: 1, longestStreak: 4, peakDayTokens: 3000, favoriteModel: 'claude-opus' }
     },
     devices: [
@@ -215,8 +220,8 @@ test('history fills idle days so the chart has a slot for each', () => {
   const { history } = buildDashboardModel(stats(), { now: NOW });
   assert.equal(history.days.length, 30);
   const byDate = Object.fromEntries(history.days.map((day) => [day.date, day]));
-  assert.equal(byDate['2026-10-17'].fraction, 1);
-  assert.equal(byDate['2026-10-18'].tokens, 0);
+  assert.equal(byDate[TWO_DAYS_AGO].fraction, 1);
+  assert.equal(byDate[YESTERDAY].tokens, 0);
   assert.equal(history.activeDays, 2);
   assert.equal(history.windowTokensText, '4.5K');
   assert.equal(history.favoriteModel, 'claude-opus');

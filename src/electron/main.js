@@ -186,6 +186,7 @@ const {
   defaultHomeModulePreferences,
   normalizeHiddenHomeModules,
   normalizeHomeLimitDisplayMode,
+  normalizeHomeModuleCounts,
   normalizeHomeModuleOrder
 } = require('./renderer/homeModulePreferences');
 const {
@@ -419,6 +420,7 @@ const {
 const { applyWindowsChrome } = require('./windowsChrome');
 const { installWindowsNonActivatingInput } = require('./windowsNonActivatingInput');
 const { canUseEdgeDock, createEdgeDockController, edgeDockSupported } = require('./edgeDock/controller');
+const { createWindowsDockBackdrop } = require('./edgeDock/windowsBackdrop');
 const { createNotchController, normalizeNotchStyle, normalizeNotchShape, normalizeNotchHoverAction, normalizeNotchHoverDelay } = require('./notch/controller');
 const { buildNotchData, notchSummaryMode, summaryLayout: notchSummaryLayout } = require('./notch/data');
 const { NOTCH_PANEL_STAT_ITEMS, notchLimitItems, notchPanelItems, notchWeek } = require('./notch/panel');
@@ -448,7 +450,8 @@ const { primaryButtonDown } = require('./edgeDock/pointerButtons');
 const { preventAppActivation, setMoveToActiveSpace } = require('./macosSpaceBehavior');
 const {
   WINDOWS_BACKDROP_ACCENT,
-  normalizeWindowsBackdropMode
+  normalizeWindowsBackdropMode,
+  normalizeWindowsDockBackdropMode
 } = require('./windowsBackdropMode');
 const { applyWindowsAccentBlur } = require('./windowsBackdrop');
 const {
@@ -653,6 +656,7 @@ function defaultSettings() {
     edgeDockHaptic: true,
     edgeDockWarnColors: false,
     edgeDockMacBackdrop: 'inherit',
+    edgeDockWindowsBackdrop: 'inherit',
     edgeDockSize: 'medium',
     edgeDockCustomScale: 1,
     edgeDockSide: 'right',
@@ -675,6 +679,7 @@ function defaultSettings() {
     hiddenViews: defaultViewDisplayPreferences().hiddenViews,
     homeModuleOrder: defaultHomeModulePreferences().homeModuleOrder,
     hiddenHomeModules: defaultHomeModulePreferences().hiddenHomeModules,
+    homeModuleCounts: normalizeHomeModuleCounts(),
     showHomeLimitBars: false,
     homeLimitDisplayMode: 'text',
     showHomeLimitProviderNames: false,
@@ -2644,6 +2649,7 @@ function readSettings() {
       merged.hiddenHomeModules = normalizeHiddenHomeModules(saved.hiddenHomeModules, DEFAULT_HOME_MODULE_LIST);
     }
     merged.showHomeLimitBars = parseBoolean(merged.showHomeLimitBars, false);
+    merged.homeModuleCounts = normalizeHomeModuleCounts(merged.homeModuleCounts);
     merged.homeLimitDisplayMode = normalizeHomeLimitDisplayMode(merged.homeLimitDisplayMode);
     merged.showHomeLimitProviderNames = parseBoolean(merged.showHomeLimitProviderNames, false);
     merged.codexResetForecastEnabled = parseBoolean(merged.codexResetForecastEnabled, false);
@@ -2767,6 +2773,7 @@ function readSettings() {
     merged.edgeDockHaptic = parseBoolean(merged.edgeDockHaptic, true);
     merged.edgeDockWarnColors = parseBoolean(merged.edgeDockWarnColors, false);
     merged.edgeDockMacBackdrop = normalizeEdgeDockBackdropMode(merged.edgeDockMacBackdrop);
+    merged.edgeDockWindowsBackdrop = normalizeWindowsDockBackdropMode(merged.edgeDockWindowsBackdrop);
     merged.edgeDockSize = normalizeEdgeDockSize(merged.edgeDockSize);
     merged.edgeDockCustomScale = normalizeEdgeDockCustomScale(merged.edgeDockCustomScale);
     merged.edgeDockItems = normalizeEdgeDockItems(merged.edgeDockItems);
@@ -5059,9 +5066,7 @@ function updateTrayDisplay() {
   const customImageMode = mode === 'custom' && providerTrayIcons.custom;
   const text = trayImageMode || customImageMode ? '' : limitText;
   if (trayShowsTitle(process.platform)) tray.setTitle(text);
-  // Tooltip always shows a useful summary, even in icon-only mode where setTitle is blank.
-  const tip = formatTrayText(visibleStats, 'both', currency, compactOptions);
-  tray.setToolTip(`Token Monitor - ${tip}`);
+  tray.setToolTip('');
   // Icon: rendered bars image in bar modes, otherwise the app icon.
   let icon = null;
   if (barsImageMode || trayImageMode || customImageMode) {
@@ -5652,13 +5657,13 @@ function ensureNotchController() {
     nativeGlass: () => nativeBlurEnabled(),
     liquidGlass: () => {
       const options = nativeMaterialOptions();
-      return options.enabled && !options.reducedTransparency && Number.parseInt(os.release(), 10) >= 25
+      return !options.reducedTransparency && Number.parseInt(os.release(), 10) >= 25
         ? { dark: options.dark } : null;
     },
     createGlass: (win) => createMacLiquidGlass(win, { shaped: true }),
     applyShapeMask: (win, commands, width, height, display) => {
       const { buffer, pixelWidth, pixelHeight } = rasterizeMask(toPolygons(commands), width, height, display?.scaleFactor || 2);
-      return applyVibrancyMask(win, nativeImage.createFromBitmap(buffer, { width: pixelWidth, height: pixelHeight }).toPNG(), width, height);
+      return applyVibrancyMask(win, { buffer, pixelWidth, pixelHeight }, width, height);
     },
     prefersReducedMotion: () => motionPreferenceApi.shouldReduceMotion(settings?.reduceMotion, systemPreferences.getAnimationSettings?.().prefersReducedMotion === true),
     onToggleRateMode: toggleDockRateMode,
@@ -6039,6 +6044,8 @@ function scheduleSessionExpiry() {
 function ensureEdgeDockController() {
   if (edgeDockController) return edgeDockController;
   edgeDockController = createEdgeDockController({
+    windowsBackdrop: process.platform === 'win32'
+      ? createWindowsDockBackdrop({ app, screen, logger: (message) => console.log(message) }) : null,
     BrowserWindow,
     ipcMain,
     powerMonitor,
@@ -6048,13 +6055,13 @@ function ensureEdgeDockController() {
     preloadPath: path.join(__dirname, 'edgeDock', 'preload.js'),
     getSettings: () => settings,
     nativeGlass: () => nativeBlurEnabled(),
-    // The dock follows the widget's glass style unless it has its own, on the
-    // same terms as the main window: Reduce Transparency hands the surface back
-    // to the HUD material.
+    // The dock follows the widget's glass style unless it has its own; the
+    // controller decides whether there is material at all. Reduce Transparency
+    // still hands the surface back to the HUD material.
     liquidGlass: () => {
       const source = dockAppearanceSettings();
       const options = nativeMaterialOptions(source);
-      const wanted = process.platform === 'darwin' && options.enabled
+      const wanted = process.platform === 'darwin'
         && isLiquidGlassBackdrop(edgeDockBackdropMode(source))
         && !options.reducedTransparency && Number.parseInt(os.release(), 10) >= 25;
       const mode = edgeDockBackdropMode(source);
@@ -6072,8 +6079,7 @@ function ensureEdgeDockController() {
     applyShapeMask: (win, commands, width, height, currentDisplay) => {
       const scale = currentDisplay?.scaleFactor || screen.getDisplayMatching?.(win.getBounds())?.scaleFactor || 2;
       const { buffer, pixelWidth, pixelHeight } = rasterizeMask(toPolygons(commands), width, height, scale);
-      const png = nativeImage.createFromBitmap(buffer, { width: pixelWidth, height: pixelHeight }).toPNG();
-      return applyVibrancyMask(win, png, width, height);
+      return applyVibrancyMask(win, { buffer, pixelWidth, pixelHeight }, width, height);
     },
     primaryButtonDown: () => primaryButtonDown(process.platform),
     installNonActivatingInput: (win) => process.platform === 'darwin' ? preventAppActivation(win)
@@ -6207,7 +6213,7 @@ async function refreshFromTray() {
     refreshContextMenu: refreshTrayContextMenu,
     action: async () => {
       try {
-        const stats = await fetchStats({ force: true });
+        const stats = await fetchStats({ force: true, forceUsage: true });
         // Collector ticks normally publish their own final snapshot. Only bridge the
         // result when fetchStats returned a different object (for example, a remote hub
         // fetch while an external headless agent owns collection).
@@ -6779,13 +6785,17 @@ async function fetchStats(options = {}) {
   const requestGeneration = hubModeGeneration;
   const requestHubIdentity = currentHubStatsIdentity(settings?.hubMode === 'icloud' ? 'icloud' : 'client');
   const force = Boolean(options?.force);
-  // forceHistory and forceSelfSync stay independent of `force` on purpose: tool
-  // settings, account sign-ins and limits actions all refresh with { force: true },
-  // so folding them in would spawn the expensive `tokscale graph` — and the Cursor
-  // and Antigravity sync subprocesses — on every one of them. Only the manual
-  // refresh button opts in.
+  // Generic `{ force: true }` calls from settings and account forms only need
+  // fresh limits. A full usage tick reads every tracked source and can take
+  // seconds, so only an explicit usage request may start it. The refresh button
+  // keeps its full usage/History rescan and self-sync so imported or corrected
+  // older usage updates Month/All Time as well as the History graph.
   if (force && ownsUsageRuntime()) {
+    const refreshUsage = options?.forceUsage === true
+      || options?.forceHistory === true
+      || options?.forceSelfSync === true;
     await runManualDeviceRefresh(deviceRuntimeHandle, {
+      refreshUsage,
       forceHistory: Boolean(options?.forceHistory),
       forceSelfSync: Boolean(options?.forceSelfSync),
       onLimitsError: (error) => console.log(`[limits-runtime] manual refresh failed: ${error.message}`)
@@ -8005,6 +8015,7 @@ app.whenReady().then(() => {
       edgeDockHaptic: parseBoolean(patch.edgeDockHaptic ?? settings.edgeDockHaptic, true),
       edgeDockWarnColors: parseBoolean(patch.edgeDockWarnColors ?? settings.edgeDockWarnColors, false),
       edgeDockMacBackdrop: normalizeEdgeDockBackdropMode(patch.edgeDockMacBackdrop ?? settings.edgeDockMacBackdrop),
+      edgeDockWindowsBackdrop: normalizeWindowsDockBackdropMode(patch.edgeDockWindowsBackdrop ?? settings.edgeDockWindowsBackdrop),
       edgeDockSize: normalizeEdgeDockSize(patch.edgeDockSize ?? settings.edgeDockSize),
       edgeDockCustomScale: normalizeEdgeDockCustomScale(patch.edgeDockCustomScale ?? settings.edgeDockCustomScale),
       // `null` is a real value here (back to the automatic default), so the
@@ -8038,6 +8049,7 @@ app.whenReady().then(() => {
       hiddenViews: patch.hiddenViews !== undefined ? normalizeHiddenViews(patch.hiddenViews, DEFAULT_VIEW_LIST) : normalizeHiddenViews(settings.hiddenViews, DEFAULT_VIEW_LIST),
       homeModuleOrder: patch.homeModuleOrder !== undefined ? normalizeHomeModuleOrder(patch.homeModuleOrder, DEFAULT_HOME_MODULE_LIST).join(',') : normalizeHomeModuleOrder(settings.homeModuleOrder, DEFAULT_HOME_MODULE_LIST).join(','),
       hiddenHomeModules: patch.hiddenHomeModules !== undefined ? normalizeHiddenHomeModules(patch.hiddenHomeModules, DEFAULT_HOME_MODULE_LIST) : normalizeHiddenHomeModules(settings.hiddenHomeModules, DEFAULT_HOME_MODULE_LIST),
+      homeModuleCounts: normalizeHomeModuleCounts(patch.homeModuleCounts, settings.homeModuleCounts),
       showHomeLimitBars: parseBoolean(patch.showHomeLimitBars ?? settings.showHomeLimitBars, false),
       homeLimitDisplayMode: normalizeHomeLimitDisplayMode(patch.homeLimitDisplayMode ?? settings.homeLimitDisplayMode),
       showHomeLimitProviderNames: parseBoolean(patch.showHomeLimitProviderNames ?? settings.showHomeLimitProviderNames, false),

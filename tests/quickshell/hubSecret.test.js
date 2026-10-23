@@ -18,14 +18,18 @@ function tempEnv(content) {
 
 const fixed = { randomSecret: () => 'generated' };
 
-test('a missing .env gets an owner-only secret and a loopback host', () => {
+// The Omarchy scripts run on Linux only: these checks rely on POSIX modes,
+// renaming over an existing file and Linux data paths.
+const posixOnly = { skip: process.platform === 'win32' };
+
+test('a missing .env gets an owner-only secret and a loopback host', posixOnly, () => {
   const file = tempEnv();
   assert.deepEqual(provisionEnv(file, fixed).added, ['TOKEN_MONITOR_SECRET', 'TOKEN_MONITOR_HOST']);
   assert.deepEqual(dotenv.parse(fs.readFileSync(file)), { TOKEN_MONITOR_SECRET: 'generated', TOKEN_MONITOR_HOST: '127.0.0.1' });
   assert.equal(fs.statSync(file).mode & 0o777, 0o600);
 });
 
-test('an empty secret copied from .env.example is filled in place', () => {
+test('an empty secret copied from .env.example is filled in place', posixOnly, () => {
   const file = tempEnv('# hub\nTOKEN_MONITOR_SECRET=\nTOKEN_MONITOR_PORT=17321');
   provisionEnv(file, fixed);
   const text = fs.readFileSync(file, 'utf8');
@@ -36,7 +40,7 @@ test('an empty secret copied from .env.example is filled in place', () => {
   assert.equal(fs.statSync(file).mode & 0o777, 0o600);
 });
 
-test('a secret and host the owner set are kept', () => {
+test('a secret and host the owner set are kept', posixOnly, () => {
   const file = tempEnv('TOKEN_MONITOR_SECRET="mine"\nTOKEN_MONITOR_HOST=0.0.0.0\n');
   // tempEnv leaves the file readable by others, so the kept secret is flagged.
   assert.deepEqual(provisionEnv(file, fixed), { added: [], exposedSecret: true });
@@ -64,7 +68,7 @@ test('both services refuse to start without the secret', () => {
   assert.equal(guards.length, 2);
 });
 
-test('a new secret never enters the readable file it replaces', () => {
+test('a new secret never enters the readable file it replaces', posixOnly, () => {
   const file = tempEnv('TOKEN_MONITOR_PORT=17321\n');
   const before = fs.statSync(file).ino;
   // Another user's descriptor opened before the migration.

@@ -126,6 +126,7 @@ test('Home holds a real overflowing title and only flushes deferred stats on lea
   const painted = [];
   const state = { breakdown: 'home', stats: { revision: 1 } };
   const context = {
+    homeModulePreferencesApi: require('../../src/electron/renderer/homeModulePreferences'),
     state, prefersReducedMotion: () => false, visibleStatsSurface: () => 'main',
     requestAnimationFrame: callback => frames.push(callback),
     document,
@@ -137,7 +138,7 @@ test('Home holds a real overflowing title and only flushes deferred stats on lea
     els: { homePanel: {
       replaceChildren(module) { painted.push(module.revision); }, querySelector: () => null
     } },
-    hideHomeActivityTooltip() {}, homeModuleIds: () => ['session'], sessionPresentationOptions: () => ({}),
+    hideHomeActivityTooltip() {}, hideTrendTooltip() {}, homeModuleIds: () => ['session'], sessionPresentationOptions: () => ({}),
     renderHomeSessionModule: () => ({ revision: state.stats.revision }), scheduleHomeSessionRepaint() {}
   };
   const setup = app.slice(app.indexOf('const overflowText ='), app.indexOf('function bindHoverMarquee('));
