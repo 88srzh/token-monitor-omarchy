@@ -11,7 +11,11 @@ const { sharedDataDir } = require('../../src/shared/config');
 
 const modeOf = (file) => fs.lstatSync(file).mode & 0o7777;
 
-test('a readable archive left by an earlier install becomes owner-only', () => {
+// The Omarchy scripts run on Linux only: these checks rely on POSIX modes,
+// renaming over an existing file and Linux data paths.
+const posixOnly = { skip: process.platform === 'win32' };
+
+test('a readable archive left by an earlier install becomes owner-only', posixOnly, () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'tm-private-'));
   const dir = path.join(root, 'Token Monitor');
   fs.mkdirSync(path.join(dir, 'nested'), { recursive: true, mode: 0o755 });
@@ -40,13 +44,13 @@ test('a readable archive left by an earlier install becomes owner-only', () => {
   assert.equal(modeOf(path.join(outsideDir, 'file')), 0o644);
 });
 
-test('a missing directory is created owner-only', () => {
+test('a missing directory is created owner-only', posixOnly, () => {
   const dir = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'tm-private-')), 'a', 'Token Monitor');
   makeOwnerOnly(dir);
   assert.equal(modeOf(dir), 0o700);
 });
 
-test('both the hub data and the shared data directory are covered', () => {
+test('both the hub data and the shared data directory are covered', posixOnly, () => {
   const env = { TOKEN_MONITOR_DATA_FILE: '/srv/tm/devices.json', XDG_CONFIG_HOME: '/home/u/.config' };
   assert.deepEqual(dataDirs(env), ['/srv/tm', sharedDataDir({ env })]);
 });
