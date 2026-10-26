@@ -13,6 +13,11 @@
 // is only safe while nothing has the file open, which is why each service
 // closes only the directory it writes, before it starts.
 //
+// An earlier release closed these files with chmod alone, so an owner-only
+// file can still be an inode another user holds open. The first run therefore
+// replaces every file, whatever its mode, and then leaves MARKER behind; later
+// runs replace only files that are readable again.
+//
 //   node privateData.js hub     the hub's data/ directory
 //   node privateData.js agent   the shared data directory
 //   node privateData.js         both
@@ -21,6 +26,8 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { loadDotEnv, projectRoot, sharedDataDir } = require('../../src/shared/config');
 const { replaceOwnerOnly } = require('./hubSecret');
+
+const MARKER = '.owner-only-inodes';
 
 function dataDirs(env = process.env) {
   const dataFile = env.TOKEN_MONITOR_DATA_FILE || path.join(projectRoot(), 'data', 'devices.json');
@@ -32,10 +39,15 @@ function dataDirs(env = process.env) {
 // closed before anything in it is copied, so no other user can reach a copy.
 function makeOwnerOnly(dir) {
   fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
+  const marker = path.join(dir, MARKER);
+  const replaceAll = !fs.existsSync(marker);
   const close = (entry, stat) => {
-    if ((stat.mode & 0o077) === 0) return;
-    if (stat.isFile()) replaceOwnerOnly(entry, fs.readFileSync(entry));
-    else fs.chmodSync(entry, stat.mode & 0o7700);
+    const shared = (stat.mode & 0o077) !== 0;
+    if (stat.isFile()) {
+      if (shared || (replaceAll && entry !== marker)) replaceOwnerOnly(entry, fs.readFileSync(entry));
+    } else if (shared) {
+      fs.chmodSync(entry, stat.mode & 0o7700);
+    }
   };
   const walk = (current) => {
     for (const dirent of fs.readdirSync(current, { withFileTypes: true })) {
@@ -47,6 +59,7 @@ function makeOwnerOnly(dir) {
   };
   close(dir, fs.statSync(dir));
   walk(dir);
+  if (replaceAll) replaceOwnerOnly(marker, 'Every file below was moved to an owner-only inode by privateData.js.\n');
 }
 
 if (require.main === module) {
@@ -60,4 +73,4 @@ if (require.main === module) {
   for (const dir of service ? [dirs[service]] : Object.values(dirs)) makeOwnerOnly(dir);
 }
 
-module.exports = { dataDirs, makeOwnerOnly };
+module.exports = { MARKER, dataDirs, makeOwnerOnly };
