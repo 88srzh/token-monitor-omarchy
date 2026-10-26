@@ -89,4 +89,4 @@ if (require.main === module) {
   }
 }
 
-module.exports = { provisionEnv, hasSecret };
+module.exports = { provisionEnv, hasSecret, replaceOwnerOnly };

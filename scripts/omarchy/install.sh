@@ -74,8 +74,9 @@ fi
 "$node" "$repo/scripts/omarchy/hubSecret.js" provision "$repo/.env"
 
 # Services, which refuse to start without the secret. Before starting, each
-# closes the usage data directories to other users (privateData.js), and its
-# UMask keeps the files it creates there owner-only. Node's directory goes on
+# closes the usage data directory it writes to other users (privateData.js),
+# while nothing has its files open, and its UMask keeps the files it creates
+# there owner-only. Node's directory goes on
 # PATH because the user manager starts with a minimal one, and Restart=always
 # because both exit 0 on SIGTERM.
 mkdir -p "$unit_dir"
@@ -89,7 +90,7 @@ WorkingDirectory=$repo
 Environment=PATH=$node_dir:/usr/local/bin:/usr/bin:/bin
 UMask=0077
 ExecStartPre=$node $repo/scripts/omarchy/hubSecret.js require
-ExecStartPre=$node $repo/scripts/omarchy/privateData.js
+ExecStartPre=$node $repo/scripts/omarchy/privateData.js hub
 ExecStart=$node $repo/src/hub/server.js
 Restart=always
 RestartSec=5
@@ -108,7 +109,7 @@ WorkingDirectory=$repo
 Environment=PATH=$node_dir:/usr/local/bin:/usr/bin:/bin
 UMask=0077
 ExecStartPre=$node $repo/scripts/omarchy/hubSecret.js require
-ExecStartPre=$node $repo/scripts/omarchy/privateData.js
+ExecStartPre=$node $repo/scripts/omarchy/privateData.js agent
 ExecStartPre=$node $repo/scripts/ensure-vendored-tokscale.js
 ExecStart=$node $repo/src/agent/agent.js
 Restart=always
