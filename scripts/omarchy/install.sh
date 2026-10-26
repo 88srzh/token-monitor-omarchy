@@ -62,7 +62,10 @@ node=$(command -v node) || die 'Node.js 22.15+ is required (`mise use -g node@lt
 "$node" -e 'const [a, b] = process.versions.node.split(".").map(Number); process.exit(a > 22 || (a === 22 && b >= 15) ? 0 : 1)' \
     || die "Node.js 22.15+ is required; $node is $("$node" --version)."
 
-if [ ! -d "$repo/node_modules" ]; then
+# npm records each install in node_modules/.package-lock.json. A checkout that
+# changed the lockfile leaves it newer than that record; without a reinstall
+# the agent fails to start once the tokscale baseVersion has moved.
+if [ ! -d "$repo/node_modules" ] || [ "$repo/package-lock.json" -nt "$repo/node_modules/.package-lock.json" ]; then
     say 'Installing runtime dependencies (npm ci --omit=dev)…'
     (cd "$repo" && npm ci --omit=dev)
 fi
