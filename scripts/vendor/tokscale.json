@@ -3,58 +3,58 @@
   "modeNote": "\"override\": ensure-vendored-tokscale.js swaps in the pinned fork build described below, and the two verify-vendored-tokscale*.js gates run against it. \"upstream\": ensure-vendored-tokscale.js no-ops (no download or replacement) and the plain npm-installed tokscale is authoritative — but both verify-vendored-tokscale*.js gates keep running, now against that npm-installed binary, so CI still fails if it doesn't actually cover DEFAULT_CLIENTS or regressed DSH parsing. `override` remains required while Token Monitor depends on downstream functionality the installed upstream release does not provide. The upstream scanner and DSH patches may be retired once equivalent fixes ship officially; the session/workspace reporting capability is a persistent Token Monitor requirement, so flipping to `upstream` is correct only when an official release provides an equivalent report surface. Without it the collector still runs (the scan falls back to `client,session,model` and the file-reading resolvers answer), but scan-backed session timestamps and project attribution narrow to the clients that have a resolver. The pin fields (commit/releaseTag/platforms) stay in place either way, so flipping back to \"override\" for a future upstream lag is editing this file again rather than re-adding infrastructure; baseVersion is not one of them — it tracks the installed dependency in both modes (see baseVersionNote). While the client catalog has forkOnly clients (Proma, CatPaw, Qoder CN), \"upstream\" fails verify-vendored-tokscale-clients.js by design: no upstream release parses them, and failing closed beats silently reporting zero usage for them.",
   "upstream": "junhoyeo/tokscale",
   "fork": "Javis603/tokscale",
-  "commit": "324d51362201b746fc35c2f2a3793c971f01d5aa",
-  "commitTitle": "feat(report): link Codex subagent and guardian sessions to their parent",
-  "baseVersion": "4.20.0",
+  "commit": "f1656b9efe3d22d8d789669790cf5a45ec9b11d0",
+  "commitTitle": "fix(deps): bump rustls-webpki and webpki-roots past the emSign distrust",
+  "baseVersion": "4.20.1",
   "baseVersionNote": "The npm-installed @tokscale/cli-<platform> package version this manifest is aligned with. It tracks the dependency in BOTH modes, and two gates enforce that: ensure-vendored-tokscale.js refuses to swap under \"override\" when the installed package reports something else, and verify-vendored-tokscale-release.js (plus its real-manifest test, so npm run verify catches it too) rejects any manifest whose baseVersion disagrees with @tokscale/cli optionalDependencies. So a tokscale bump always has to touch this file — either pin a new build or flip the mode — instead of silently leaving a stale override in place.",
   "releaseRepo": "Javis603/tokscale",
-  "releaseTag": "token-monitor-324d5136",
-  "reason": "Pinned to upstream c1973901fc2f7ba0d134252bfd923c714cc123db (v4.20.0), retaining the downstream session/workspace report, parent links, request-performance timing, custom-price authority, and fork-owned clients. This alignment inherits provider-scoped billing/pricing, Codex OpenCodex physical-model attribution and configurable archive limits, Pi non-assistant billed operations, Kilo extension usage/cost fixes and native macOS/Windows VS Code roots, Cursor signed-in desktop sync, and upstream Claude retained-history behavior after transcript deletion. Custom rates use raw model and billing evidence and remain final without Fast or hosted markup; incomplete coverage preserves reported costs. Combined cache generations are shared 14, MiMo 15 and Claude/Copilot 16, with explicit migrations for both upstream billing and previously released downstream timing layouts, preserving retained messages and MiMo row provenance. Codex parser generation 20 rebuilds timing/parent state once; DSH generation 11 retains the seed/keepalive fixes and upstream billing provenance. Token Monitor preserves manually authored provider_overrides in its pricing file and mirrors the newly scanned Kilo roots. OpenCodex ledger-only changes have no dedicated App watcher and wait for normal collection/full-period reconciliation. Upstream usage-dashboard additions do not change Token Monitor limits UI.",
+  "releaseTag": "token-monitor-f1656b9e",
+  "reason": "Pinned to upstream 82e24b92 (v4.20.1 plus Cursor usage-event snapshot dedup), retaining the downstream session/workspace report, parent links, request-performance timing, custom-price authority, fork-owned Qoder CN and CatPaw clients and the mcode runtime-store supplement. Proma is parsed by the upstream native client. Bumps rustls-webpki to 0.103.16 and webpki-roots to 1.0.11, past the emSign distrust (RUSTSEC-2026-0381, RUSTSEC-2026-0382).",
   "platforms": {
     "android-arm64": {
       "package": "@tokscale/cli-android-arm64",
       "asset": "tokscale-android-arm64",
-      "sha256": "f501fc035d156252dccbafb38caf6b480b3e70cf16698c456e2ed5e88969deae"
+      "sha256": "582fb6edd3f1b003a743631e7edd016eab3408f3274d911818e1963c57886ffb"
     },
     "darwin-arm64": {
       "package": "@tokscale/cli-darwin-arm64",
       "asset": "tokscale-darwin-arm64",
-      "sha256": "9d0f64bec1b564e19afbc93cb152a5aa82c5e2a10fba4a95a3d5bbc789718a10"
+      "sha256": "e41768737c90d3684c302d77e55c4a0d895602860994db21d5ba0033935e0e23"
     },
     "darwin-x64": {
       "package": "@tokscale/cli-darwin-x64",
       "asset": "tokscale-darwin-x64",
-      "sha256": "62207d217f31c30ca3602ab00d5e00ee2e3befe5221370ef96032b454e5b0364"
+      "sha256": "d85084d471bb216b609cb62275512c4dc237629ae0a599455a6793447725e3ee"
     },
     "linux-arm64": {
       "package": "@tokscale/cli-linux-arm64-gnu",
       "asset": "tokscale-linux-arm64",
-      "sha256": "328b64c877cd127dddfbe2f95c8ed3eda1e81f770a3511a7b3bd5b16f6cd9fcc"
+      "sha256": "29583c256565d333583598ac64299abaa76df198862a76561e4092bf5072cfd0"
     },
     "linux-arm64-musl": {
       "package": "@tokscale/cli-linux-arm64-musl",
       "asset": "tokscale-linux-arm64-musl",
-      "sha256": "8683d9da4dba2b395a888b049fe5183d45ac159564954a425e4f397e4c03532c"
+      "sha256": "d2af4dcd9d912ad52bfdc180419a8641504cec60f888c3d8744b25b66ae1062a"
     },
     "linux-x64": {
       "package": "@tokscale/cli-linux-x64-gnu",
       "asset": "tokscale-linux-x64",
-      "sha256": "6d147e46acea5dd5452493a8b4357ae0112441c4e90edaa55aaef7c0ee77fadf"
+      "sha256": "79413afbfa58d2a2af9e143543a21f45935eca02ef96af88d9a0961bd9ffa428"
     },
     "linux-x64-musl": {
       "package": "@tokscale/cli-linux-x64-musl",
       "asset": "tokscale-linux-x64-musl",
-      "sha256": "cbf8da189b26d35ecef80e59644173cb5bd2d3232be239caa759822e870c2179"
+      "sha256": "3f86df2f872083c3d6c15333c11228d29948872029fca2257f1848b85a8aacc3"
     },
     "win32-arm64": {
       "package": "@tokscale/cli-win32-arm64-msvc",
       "asset": "tokscale-win32-arm64.exe",
-      "sha256": "d13c18553924343365ec5a404f953e411ee58207f4be28b82fbf7913fa6829dc"
+      "sha256": "c01ad1dfe07619ef602617c9883623012b1a1cacef3ea74878b8dd9e6b6cacf0"
     },
     "win32-x64": {
       "package": "@tokscale/cli-win32-x64-msvc",
       "asset": "tokscale-win32-x64.exe",
-      "sha256": "887113d6adeb4aa15bb298e80d316a1dc1c961d4aa469cec64533ac606b9d173"
+      "sha256": "4edbdeb1b064b2ce2e02e01b0305af2f107a449fbb4f25a7190b552665befb57"
     }
   }
 }
