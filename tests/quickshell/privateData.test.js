@@ -7,7 +7,7 @@ const os = require('node:os');
 const path = require('node:path');
 
 const { DatabaseSync } = require('node:sqlite');
-const { dataDirs, makeOwnerOnly } = require('../../scripts/omarchy/privateData');
+const { MARKER, dataDirs, makeOwnerOnly } = require('../../scripts/omarchy/privateData');
 const { sharedDataDir } = require('../../src/shared/config');
 
 const modeOf = (file) => fs.lstatSync(file).mode & 0o7777;
@@ -49,22 +49,32 @@ test('a readable archive left by an earlier install becomes owner-only', posixOn
   assert.equal(modeOf(path.join(outsideDir, 'file')), 0o644);
 });
 
-test('a descriptor opened on the readable archive sees none of the records written after closing it', posixOnly, () => {
+function archiveFixture() {
   const dir = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'tm-private-')), 'Token Monitor');
   fs.mkdirSync(dir, { mode: 0o755 });
   fs.chmodSync(dir, 0o755);
   const file = path.join(dir, 'session-usage-archive.sqlite');
-  const write = (marker) => {
+  const write = (entry) => {
     const db = new DatabaseSync(file);
     db.exec('PRAGMA journal_mode = WAL; CREATE TABLE IF NOT EXISTS sessions (entry TEXT)');
-    db.prepare('INSERT INTO sessions VALUES (?)').run(marker);
+    db.prepare('INSERT INTO sessions VALUES (?)').run(entry);
     db.exec('PRAGMA wal_checkpoint(TRUNCATE)');
     db.close();
   };
-  write('before-upgrade');
-  fs.chmodSync(file, 0o644);
-  // Another user opens the database while it is still readable.
-  const earlier = fs.openSync(file, 'r');
+  const entries = () => {
+    const db = new DatabaseSync(file, { readOnly: true });
+    try {
+      return db.prepare('SELECT entry FROM sessions').all().map((row) => row.entry);
+    } finally {
+      db.close();
+    }
+  };
+  return { dir, file, write, entries };
+}
+
+// Another user opened the database while it was readable; after closing, the
+// owner's later writes must not reach that descriptor.
+function assertEarlierDescriptorIsCutOff({ dir, file, write, entries }, earlier) {
   try {
     makeOwnerOnly(dir);
     write('after-upgrade');
@@ -73,12 +83,44 @@ test('a descriptor opened on the readable archive sees none of the records writt
     assert.match(leaked, /before-upgrade/);
     assert.doesNotMatch(leaked, /after-upgrade/);
     assert.equal(modeOf(file), 0o600);
-    const db = new DatabaseSync(file, { readOnly: true });
-    assert.deepEqual(db.prepare('SELECT entry FROM sessions').all().map((row) => row.entry), ['before-upgrade', 'after-upgrade']);
-    db.close();
+    assert.deepEqual(entries(), ['before-upgrade', 'after-upgrade']);
   } finally {
     fs.closeSync(earlier);
   }
+}
+
+test('a descriptor opened on the readable archive sees none of the records written after closing it', posixOnly, () => {
+  const fixture = archiveFixture();
+  fixture.write('before-upgrade');
+  fs.chmodSync(fixture.file, 0o644);
+  assertEarlierDescriptorIsCutOff(fixture, fs.openSync(fixture.file, 'r'));
+});
+
+test('an archive an earlier release closed with chmod alone still moves to a new inode', posixOnly, () => {
+  const fixture = archiveFixture();
+  fixture.write('before-upgrade');
+  fs.chmodSync(fixture.file, 0o644);
+  const earlier = fs.openSync(fixture.file, 'r');
+  // What the chmod-only release did: owner-only modes on the same inodes.
+  fs.chmodSync(fixture.dir, 0o700);
+  fs.chmodSync(fixture.file, 0o600);
+  assertEarlierDescriptorIsCutOff(fixture, earlier);
+});
+
+test('once every file has a new inode, later runs leave owner-only files in place', posixOnly, () => {
+  const { dir, file, write } = archiveFixture();
+  write('entry');
+  makeOwnerOnly(dir);
+  assert.ok(fs.existsSync(path.join(dir, MARKER)));
+  const inode = fs.statSync(file).ino;
+
+  makeOwnerOnly(dir);
+  assert.equal(fs.statSync(file).ino, inode);
+
+  fs.chmodSync(file, 0o644);
+  makeOwnerOnly(dir);
+  assert.notEqual(fs.statSync(file).ino, inode, 'a file readable again is still replaced');
+  assert.equal(modeOf(file), 0o600);
 });
 
 test('a missing directory is created owner-only', posixOnly, () => {
