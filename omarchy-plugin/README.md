@@ -32,7 +32,7 @@ The installer writes these, and nothing else:
 
 | What | Where |
 |---|---|
-| Runtime dependencies, if missing | `npm ci --omit=dev` in the checkout |
+| Runtime dependencies, when missing or older than `package-lock.json` | `npm ci --omit=dev` in the checkout |
 | A random hub secret and a loopback host, if not set, in an owner-only file | `.env` in the checkout (`TOKEN_MONITOR_SECRET`, `TOKEN_MONITOR_HOST=127.0.0.1`, mode 600) |
 | The hub's data directory closed to other users | `data/` in the checkout (mode 700) |
 | Hub and agent user services, enabled and started | `~/.config/systemd/user/token-monitor-{hub,agent}.service` |

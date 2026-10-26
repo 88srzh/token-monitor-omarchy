@@ -27,7 +27,7 @@ The script is idempotent; re-run it after `git pull`. It adds the widget from it
 
 | What | Where |
 |---|---|
-| Runtime dependencies, if missing | `npm ci --omit=dev` in the checkout |
+| Runtime dependencies, when missing or older than `package-lock.json` | `npm ci --omit=dev` in the checkout |
 | A random hub secret and a loopback host, if not set, in an owner-only file | `.env` in the checkout (`TOKEN_MONITOR_SECRET`, `TOKEN_MONITOR_HOST=127.0.0.1`, mode 600) |
 | Hub and agent as user services, enabled and started | `~/.config/systemd/user/token-monitor-{hub,agent}.service` |
 | Usage data closed to other users, by each service for the directory it writes, before it starts, and through its `UMask=0077`. A file an earlier install left readable is replaced by an owner-only copy, not chmodded, so a descriptor opened on it earlier never sees later writes. The first run replaces every file whatever its mode, since an earlier release closed them with chmod alone, and leaves `.owner-only-inodes` behind | `data/` in the checkout (hub) and `~/.config/Token Monitor/` (agent: the session archive and its SQLite sidecars), mode 700 with owner-only files |
