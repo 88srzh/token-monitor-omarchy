@@ -2,7 +2,7 @@
 
 An [Omarchy](https://omarchy.org) 4 bar widget for the [Token Monitor](https://github.com/Javis603/token-monitor) hub: token usage, cost and AI tool limits for your AI coding tools, across all your devices. One icon in the bar, which takes Omarchy's alarm colour when a quota passes 90%, and a panel with today / month / all-time totals, limits, tool, model and project breakdowns, a rolling-year activity grid and trend line, recent sessions and devices.
 
-<img width="360" alt="Token Monitor panel in omarchy-shell" src="preview.png" />
+<img width="800" alt="Token Monitor Hub: the panel in omarchy-shell" src="preview.png" />
 
 This is an unofficial widget, built on [Javis603/token-monitor](https://github.com/Javis603/token-monitor). It is published from the [token-monitor-omarchy](https://github.com/88srzh/token-monitor-omarchy) fork; report issues there.
 
