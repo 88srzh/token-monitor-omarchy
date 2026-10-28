@@ -1,5 +1,6 @@
 import QtQuick
 import QtQuick.Controls
+import QtQuick.Layouts
 import QtQuick.Shapes
 import Quickshell
 import Quickshell.Io
@@ -457,46 +458,50 @@ Panel {
             width: parent.width
             spacing: Style.spacing.md
 
-            PanelSectionHeader {
+            SectionHead {
               width: parent.width
-              text: "DEVICES"
-              foreground: root.foreground
-              fontFamily: root.fontFamily
+              title: "DEVICES"
+              meta: "today"
             }
 
-            Repeater {
-              model: root.model ? root.model.devices : []
+            // Name, OS, last seen and today's tokens, each in its own aligned
+            // column. The grid fills column by column, one Repeater per column;
+            // the OS column takes up the slack and elides when the panel is
+            // narrow. A stale device is dimmed.
+            GridLayout {
+              width: parent.width
+              flow: GridLayout.TopToBottom
+              rows: Math.max(devices.length, 1)
+              columnSpacing: Style.spacing.md
+              rowSpacing: Style.spacing.md
 
-              Item {
-                id: deviceRow
-                required property var modelData
+              readonly property var devices: root.model ? root.model.devices : []
 
-                width: devicesSection.width
-                implicitHeight: Math.max(deviceName.implicitHeight, deviceToday.implicitHeight)
-                opacity: modelData.stale ? 0.55 : 1
-
-                Text {
-                  id: deviceName
-                  textFormat: Text.PlainText
-                  anchors.left: parent.left
-                  anchors.right: deviceToday.left
-                  anchors.rightMargin: Style.spacing.sm
-                  text: deviceRow.modelData.name + "  " + root.joined([deviceRow.modelData.os, deviceRow.modelData.stale ? "stale" : "", "seen " + deviceRow.modelData.seenText])
-                  color: root.foreground
-                  font.family: root.fontFamily
-                  font.pixelSize: Style.font.bodySmall
-                  elide: Text.ElideRight
-                }
-
-                Text {
-                  id: deviceToday
-                  textFormat: Text.PlainText
-                  anchors.right: parent.right
-                  text: deviceRow.modelData.todayText + " today"
+              Repeater {
+                model: parent.devices
+                DeviceCell { text: modelData.name; stale: modelData.stale }
+              }
+              Repeater {
+                model: parent.devices
+                DeviceCell {
+                  text: modelData.os
+                  stale: modelData.stale
                   color: root.dim
-                  font.family: root.fontFamily
-                  font.pixelSize: Style.font.bodySmall
+                  Layout.fillWidth: true
+                }
+              }
+              Repeater {
+                model: parent.devices
+                DeviceCell { text: modelData.seenText; stale: modelData.stale; color: root.dim }
+              }
+              Repeater {
+                model: parent.devices
+                DeviceCell {
+                  text: modelData.todayText
+                  stale: modelData.stale
+                  color: root.dim
                   font.bold: true
+                  Layout.alignment: Qt.AlignRight
                 }
               }
             }
@@ -935,6 +940,20 @@ Panel {
         }
       }
     }
+  }
+
+  // One cell of the devices grid.
+  component DeviceCell: Text {
+    required property var modelData
+    property bool stale: false
+
+    textFormat: Text.PlainText
+    color: root.foreground
+    opacity: stale ? 0.55 : 1
+    font.family: root.fontFamily
+    font.pixelSize: Style.font.bodySmall
+    elide: Text.ElideRight
+    Layout.minimumWidth: 0
   }
 
   // A section title with a dim note on the right ("25 active days").
