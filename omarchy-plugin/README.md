@@ -41,14 +41,13 @@ The installer writes these, and nothing else:
 
 ## Update
 
-Update the widget, then move the backend to the commit named here, which is the one the updated widget was published with:
+Run the updater installed with the widget:
 
 ```bash
-omarchy plugin update io.github.88srzh.token-monitor \
-  && git -C ~/.local/share/token-monitor fetch origin \
-  && git -C ~/.local/share/token-monitor checkout --detach @BACKEND_REV@ \
-  && ~/.local/share/token-monitor/scripts/omarchy/install.sh
+~/.config/omarchy/plugins/io.github.88srzh.token-monitor/update.sh
 ```
+
+It updates the widget, moves the backend to the commit pinned by the updated widget, and reruns the installer. If this version of the widget does not have `update.sh` yet, run `omarchy plugin update io.github.88srzh.token-monitor` once first.
 
 The installer restarts `omarchy-shell` when the widget changed. If you update with `omarchy plugin update` alone, run `omarchy-restart-shell` afterwards: the shell reloads a changed plugin but keeps showing the previous panel until it restarts.
 

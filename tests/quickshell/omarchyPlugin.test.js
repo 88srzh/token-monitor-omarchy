@@ -63,17 +63,17 @@ test('the period setting offers exactly the periods the model builds', () => {
 });
 
 // The marketplace reviews the backend revision the widget installs, so the
-// README pins it; publish-plugin.sh fills in the SHA.
-test('the widget README installs and updates a pinned backend commit', () => {
+// README pins it; publish-plugin.sh fills in the SHA. The updater reads that
+// same pin from the published README instead of carrying a second revision.
+test('the widget README installs a pinned backend commit and exposes the updater', () => {
   const readme = fs.readFileSync(path.join(pluginDir, 'README.md'), 'utf8');
   const blocks = readme.match(/```bash\n[\s\S]*?```/g).filter((block) => block.includes('install.sh') && !block.includes('--uninstall'));
-  assert.equal(blocks.length, 2);
-  for (const block of blocks) {
-    // The marketplace scanner only counts a pin that stays in one && chain
-    // up to the installer, so a failed checkout cannot fall through to it.
-    assert.match(block, /checkout --detach @BACKEND_REV@ \\\n\s*&& [^\n]*install\.sh/);
-    assert.doesNotMatch(block, /git pull/);
-  }
+  assert.equal(blocks.length, 1);
+  // The marketplace scanner only counts a pin that stays in one && chain up
+  // to the installer, so a failed checkout cannot fall through to it.
+  assert.match(blocks[0], /checkout --detach @BACKEND_REV@ \\\n\s*&& [^\n]*install\.sh/);
+  assert.doesNotMatch(blocks[0], /git pull/);
+  assert.match(readme, /io\.github\.88srzh\.token-monitor\/update\.sh/);
   const publish = fs.readFileSync(path.join(root, 'scripts', 'omarchy', 'publish-plugin.sh'), 'utf8');
   assert.ok(publish.includes('s/@BACKEND_REV@/$rev/g'));
 });
