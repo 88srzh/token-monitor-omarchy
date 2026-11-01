@@ -9,7 +9,7 @@ const { spawnSync } = require('node:child_process');
 
 const root = path.join(__dirname, '..', '..');
 
-test('the widget updater refreshes the plugin and installs its pinned backend', (t) => {
+test('the widget updater refreshes the plugin and installs its pinned backend', { skip: process.platform === 'win32' }, (t) => {
   const temp = fs.mkdtempSync(path.join(os.tmpdir(), 'omarchy-update-check-'));
   t.after(() => fs.rmSync(temp, { recursive: true, force: true }));
   const plugin = path.join(temp, 'plugin');
