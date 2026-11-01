@@ -202,6 +202,20 @@ test('the activity grid prefers the full history the bridge fetched', () => {
   assert.equal(trend.peakText, 'Peak 38.5M');
 });
 
+test('the activity grid uses token intensity for unpriced days beside priced history', () => {
+  const history = {
+    daily: [
+      { date: TWO_DAYS_AGO, tokens: 3000, cost: 1 },
+      { date: YESTERDAY, tokens: 2000, cost: 0 }
+    ],
+    summary: {}
+  };
+  const { activity } = buildDashboardModel(stats(), { now: NOW, history });
+  const unpriced = activity.cells.find((cell) => /2K tokens · \$0\.0000/.test(cell.tooltip));
+  assert.ok(unpriced);
+  assert.ok(unpriced.level > 0);
+});
+
 test('the trend is a smoothed path in unit coordinates with three date marks', () => {
   const daily = ['2026-10-12', '2026-10-14', '2026-10-15', '2026-10-17'].map((date, i) => ({ date, tokens: 1000 * (i + 1), cost: 0 }));
   const { trend } = buildDashboardModel(stats(), { now: NOW, history: { daily, summary: {} } });
