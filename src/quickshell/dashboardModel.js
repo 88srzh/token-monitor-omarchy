@@ -386,10 +386,9 @@ function activityView(history, todayPeriod, now) {
     finite(todayPeriod?.totalTokens),
     finite(todayPeriod?.costUsd)
   );
-  // Cost is the Electron default heat metric; unpriced usage falls back to tokens.
-  const byCost = daily.some((row) => finite(row?.cost) > 0);
+  // Cost is the Electron default heat metric; unpriced days fall back to tokens.
   const points = usageCharts.computeHeatmapIntensities(daily)
-    .map((row) => ({ ...row, intensity: byCost ? row.costIntensity : row.tokenIntensity }));
+    .map((row) => ({ ...row, intensity: finite(row?.cost) > 0 ? row.costIntensity : row.tokenIntensity }));
   const grid = usageCharts.rollingYearHeatmap(points, { endDate: today });
   const summary = history?.summary && typeof history.summary === 'object' ? history.summary : {};
   const activeDays = Number.isFinite(summary.activeDays)
