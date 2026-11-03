@@ -100,6 +100,31 @@ test('period breakdown ranks tools and adds an Unclassified remainder', () => {
   assert.equal(today.projects[0].clientLabel, 'Claude Code');
 });
 
+test('Kimi managed model ids use their selector names', () => {
+  const input = stats();
+  input.periods.today.models = { 'kimi-for-coding': 1000, k3: 500 };
+  input.periods.today.modelCosts = { 'kimi-for-coding': 0.17, k3: 0.08 };
+  input.periods.today.sessions = {
+    'kimi:a': {
+      client: 'kimi',
+      sessionId: 'a',
+      totalTokens: 1000,
+      costUsd: 0.17,
+      lastUsedAt: '2026-10-19T11:58:00.000Z',
+      models: { 'kimi-for-coding': 1000 }
+    }
+  };
+  input.historyPreview.summary.favoriteModel = 'kimi-for-coding';
+
+  const model = buildDashboardModel(input, { now: NOW });
+  assert.deepEqual(model.periods.today.models.map((row) => [row.id, row.label]), [
+    ['kimi-for-coding', 'K2.8 Preview'],
+    ['k3', 'k3']
+  ]);
+  assert.equal(model.sessions[0].modelLabel, 'K2.8 Preview');
+  assert.equal(model.history.favoriteModel, 'K2.8 Preview');
+});
+
 test('a period without token components shows dashes instead of zeros', () => {
   const { periods } = buildDashboardModel(stats(), { now: NOW });
   assert.equal(periods.month.outputText, '—');

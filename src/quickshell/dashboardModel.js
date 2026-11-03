@@ -83,6 +83,20 @@ function clientLabel(id) {
   return CLIENT_LABELS[id] || id;
 }
 
+// Kimi Code reports its managed default by the stable wire id, while the model
+// selector displays the generation currently behind that id.
+const KIMI_CODE_MODEL_LABELS = {
+  'kimi-for-coding': 'K2.8 Preview'
+};
+
+function modelLabel(id) {
+  return KIMI_CODE_MODEL_LABELS[id] || id;
+}
+
+function sessionDisplayModelLabel(session) {
+  return modelLabel(sessionModelLabel(session));
+}
+
 // "2h 14m", "3d 4h", "<1m": the two most significant units, no seconds.
 function durationText(ms) {
   const minutes = Math.floor(Math.max(0, ms) / 60_000);
@@ -193,7 +207,7 @@ function periodView(period) {
       limit: BREAKDOWN_ROWS, label: clientLabel, color: vendorColor
     }),
     models: rankedRows(src.models, src.modelCosts, total, {
-      limit: BREAKDOWN_ROWS, label: (id) => id, color: () => null
+      limit: BREAKDOWN_ROWS, label: modelLabel, color: () => null
     }),
     projects: projectRows(src.projects)
   };
@@ -289,7 +303,7 @@ function sessionRows(periods, now) {
         clientLabel: clientLabel(session.client),
         color: vendorColor(session.client),
         title: title || project || String(session.sessionId || key).slice(0, 24),
-        modelLabel: sessionModelLabel(session),
+        modelLabel: sessionDisplayModelLabel(session),
         project: title ? project : '',
         state: sessionActivityState(session, now),
         tokensText: tokensText(session.totalTokens),
@@ -339,7 +353,7 @@ function historyView(preview, now) {
     currentStreak: finite(summary.currentStreak),
     longestStreak: finite(summary.longestStreak),
     peakDayText: tokensText(summary.peakDayTokens),
-    favoriteModel: String(summary.favoriteModel || '')
+    favoriteModel: modelLabel(String(summary.favoriteModel || ''))
   };
 }
 
