@@ -176,6 +176,14 @@
       return result(null, window.detail || (compact ? counted(window, showUsed, compact) : ''));
     }
 
+    if (id === 'opencode') {
+      // Only the per-model Go rows carry a dollar pair. The aggregate Go
+      // monthly window is a percentage with no denominator, and the Zen
+      // balance is a `credits` window whose amount belongs on its own line.
+      if (!billing || metric === 'credits') return EMPTY;
+      return result(null, moneyOfUsed(window, showUsed));
+    }
+
     // Kimi's single shared membership meter ships its Kimi-vs-Code composition
     // as `detail` and is the only other provider that shows one.
     if (id === 'kimi') return billing ? result(null, window.detail || '') : EMPTY;

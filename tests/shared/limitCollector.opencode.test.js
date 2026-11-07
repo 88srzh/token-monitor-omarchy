@@ -14,6 +14,9 @@ const OPENCODE_API_UNCONFIGURED = { status: 'notConfigured', windows: [], identi
 const collectLimitsOnce = (options, deps = {}) => collectLimitsOnceRaw(options, {
   opencodeCollectGoApi: async () => OPENCODE_API_UNCONFIGURED,
   opencodeReadGoApiKey: () => '',
+  // The Console OAuth session is ambient too; left unstubbed it would read the
+  // developer's real OpenCode 2.x database and add model rows to every fixture.
+  opencodeReadConsoleSession: () => null,
   ...deps
 });
 

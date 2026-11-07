@@ -84,6 +84,18 @@ test('a provider rule only touches the window kind it belongs to', () => {
   }
 });
 
+test('OpenCode model allowances put the dollar pair under the monthly meter', () => {
+  const monthly = { kind: 'billing', label: 'Monthly', used: 1.19, limit: 100, currency: 'USD' };
+  // The headline stays the percentage the bar fills with; the amount is the
+  // second line, in remaining mode by default.
+  assert.deepEqual(text('opencode', monthly), { value: null, detail: '$98.81 / $100.00', percentLeads: false });
+  assert.equal(text('opencode', monthly, true).detail, '$1.19 / $100.00');
+  // The aggregate Go month has no dollar denominator, and the Zen balance is a
+  // credits window — neither gets a money line.
+  assert.equal(text('opencode', { kind: 'billing', usedPercent: 4 }).detail, '');
+  assert.equal(text('opencode', { kind: 'billing', metric: 'credits', remaining: 5, currency: 'USD' }).detail, '');
+});
+
 test('a window with no absolute units keeps its percentage-only look', () => {
   for (const id of ['kiro', 'qoder', 'zed', 'zai']) {
     assert.deepEqual(text(id, { kind: 'billing', usedPercent: 40 }), { value: null, detail: '', percentLeads: false }, id);

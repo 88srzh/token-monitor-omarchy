@@ -37,11 +37,26 @@ function throwIfTerminal(error, signal) {
   }
 }
 
-async function request(path, cookie, workspaceId, deps) {
+// A cookie header string and an OAuth session are two ways to authenticate the
+// same Console API. Keep the difference here so callers do not grow parallel
+// request implementations.
+function authHeaders(auth) {
+  if (typeof auth === 'string' && auth) return { Cookie: auth };
+  if (auth && typeof auth === 'object' && typeof auth.access === 'string' && auth.access) {
+    return { Authorization: `Bearer ${auth.access}` };
+  }
+  return null;
+}
+
+async function request(path, auth, workspaceId, deps) {
+  const credentials = authHeaders(auth);
+  if (!credentials) {
+    throw Object.assign(new Error('OpenCode Console credential missing'), { status: 'unauthorized' });
+  }
   deps.signal?.throwIfAborted();
   const res = await (deps.fetch || globalThis.fetch)(`${BASE_URL}/console/api/${path}`, {
     method: 'GET', signal: deps.signal, credentials: 'omit', redirect: 'manual',
-    headers: { Cookie: cookie, Accept: 'application/json', 'User-Agent': BROWSER_USER_AGENT,
+    headers: { ...credentials, Accept: 'application/json', 'User-Agent': BROWSER_USER_AGENT,
       ...(workspaceId ? { 'x-org-id': workspaceId } : {}) }
   });
   deps.signal?.throwIfAborted();
@@ -114,10 +129,94 @@ function parseBillingStatus(body) {
   return { status: 'ok', windows: [], balanceUsd: balance / 100000000 };
 }
 
-async function fetchConsole(kind, cookie, deps) {
-  const workspaceId = await resolveWorkspaceId(cookie, deps);
-  const body = await request(kind === 'go' ? 'go/status' : 'billing/status', cookie, workspaceId, deps);
-  return { ...(kind === 'go' ? parseGoStatus(body) : parseBillingStatus(body)), workspaceId };
+async function fetchGoStatus(auth, workspaceId, deps) {
+  const body = await request('go/status', auth, workspaceId, deps);
+  return {
+    ...parseGoStatus(body),
+    // `product` names the plan (Go / Go Plus / Go Teams). The meters do not
+    // carry per-model allowances, but the plan selects which allowance table
+    // the usage-by-model rows are compared against.
+    plan: String(body?.product || '').trim(),
+    access: body?.access && typeof body.access === 'object' ? body.access : null
+  };
 }
 
-module.exports = { normalizeWorkspaceId, hasCookie, createProbeDeps, throwIfTerminal, fetchConsole };
+async function fetchBillingStatus(auth, workspaceId, deps) {
+  return parseBillingStatus(await request('billing/status', auth, workspaceId, deps));
+}
+
+async function fetchConsole(kind, cookie, deps) {
+  const workspaceId = await resolveWorkspaceId(cookie, deps);
+  if (kind === 'go') return { ...(await fetchGoStatus(cookie, workspaceId, deps)), workspaceId };
+  return { ...(await fetchBillingStatus(cookie, workspaceId, deps)), workspaceId };
+}
+
+// OAuth credentials know their workspace from the Console metadata, so there is
+// no org discovery step. A cookie still uses discovery because it may be a
+// legacy session without the metadata.
+async function fetchConsoleSession(kind, session, deps) {
+  const workspaceId = normalizeWorkspaceId(session?.orgId);
+  if (!workspaceId) throw Object.assign(new Error('OpenCode Console workspace missing'), { status: 'unavailable' });
+  if (kind === 'go') return { ...(await fetchGoStatus({ access: session.access }, workspaceId, deps)), workspaceId };
+  return { ...(await fetchBillingStatus({ access: session.access }, workspaceId, deps)), workspaceId };
+}
+
+function parseUsageModels(body) {
+  const items = Array.isArray(body?.items) ? body.items : null;
+  if (!items) throw new Error('OpenCode Console usage models missing');
+  const parsed = [];
+  for (const item of items) {
+    if (!item || typeof item !== 'object') continue;
+    const model = String(item.model || '').trim();
+    const provider = String(item.provider || '').trim();
+    const cost = integer(item.totalCostMicroCents);
+    if (!model || !provider || cost === null) continue;
+    parsed.push({
+      model,
+      provider,
+      costUsd: cost / 1e8,
+      requests: integer(item.totalRequests)
+    });
+  }
+  return parsed;
+}
+
+// The Console's per-model usage reading. It is date-range based (the current
+// Go billing period by default) and returns one row per model used in that
+// period. This is the only per-model source: the Bearer-key usage endpoint
+// answers aggregate windows only.
+async function fetchUsageModels(session, deps) {
+  const workspaceId = normalizeWorkspaceId(session?.orgId);
+  if (!workspaceId) throw Object.assign(new Error('OpenCode Console workspace missing'), { status: 'unavailable' });
+  const body = await request('usage/models?pageSize=100', { access: session.access }, workspaceId, deps);
+  return { status: 'ok', items: parseUsageModels(body), workspaceId };
+}
+
+// Confirms the OAuth session belongs to a single-member Go workspace before the
+// usage-by-model rows are published. A multi-member workspace reports workspace
+// usage there while a Go subscription meters each member separately, so mixing
+// the two would show one member another's numbers.
+async function fetchConsoleOrgs(session, deps) {
+  const workspaceId = normalizeWorkspaceId(session?.orgId);
+  if (!workspaceId) throw Object.assign(new Error('OpenCode Console workspace missing'), { status: 'unavailable' });
+  const body = await request('orgs/current', { access: session.access }, workspaceId, deps);
+  const org = body?.org && typeof body.org === 'object' ? body.org : null;
+  return {
+    status: 'ok',
+    orgId: normalizeWorkspaceId(org?.id) || '',
+    singleMember: body?.singleMember === true,
+    hasGoSubscription: body?.hasGoSubscription === true
+  };
+}
+
+module.exports = {
+  normalizeWorkspaceId,
+  hasCookie,
+  createProbeDeps,
+  throwIfTerminal,
+  fetchConsole,
+  fetchConsoleSession,
+  fetchConsoleOrgs,
+  fetchUsageModels,
+  parseUsageModels
+};

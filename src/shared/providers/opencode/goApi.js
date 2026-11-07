@@ -18,6 +18,7 @@ const path = require('node:path');
 
 const { createOutboundFetch } = require('../../outboundFetch');
 const { resolveDataDir } = require('./goLimits');
+const { readV2ApiKey } = require('./v2Credentials');
 const { cleanSecret } = require('../../limits/providerHelpers');
 
 const GO_USAGE_URL = 'https://opencode.ai/zen/go/v1/usage';
@@ -92,7 +93,7 @@ function readGoAuthDocument(env) {
   const inline = String(env.OPENCODE_AUTH_CONTENT || '').trim();
   if (inline) {
     try {
-      return { document: JSON.parse(inline), validated: false };
+      return { document: JSON.parse(inline), validated: false, inline: true };
     } catch (_) { /* fall through to the file, as upstream does */ }
   }
 
@@ -104,10 +105,25 @@ function readGoAuthDocument(env) {
   }
 
   try {
-    return { document: JSON.parse(raw), validated: true };
+    return { document: JSON.parse(raw), validated: true, inline: false };
   } catch (_) {
     return null;
   }
+}
+
+// `present` separates "this document has no Go entry" from "it has one that is
+// not an API key". The first may fall through to the 2.x credential database;
+// the second is the user's answer and must not be overridden from another store.
+function goApiKeyFromDocument(source) {
+  const parsed = source?.document;
+  const entry = parsed && typeof parsed === 'object' ? parsed[GO_AUTH_PROVIDER_ID] : null;
+  if (!entry || typeof entry !== 'object') return { present: false, key: '' };
+  if (source.validated) {
+    return { present: true, key: isGoApiCredential(entry) ? cleanSecret(entry.key) : '' };
+  }
+  const type = String(entry.type || '').toLowerCase();
+  if (type && type !== 'api') return { present: true, key: '' };
+  return { present: true, key: cleanSecret(entry.key) };
 }
 
 // Returns '' when no key is available — the caller treats that as notConfigured.
@@ -116,13 +132,16 @@ function readGoApiKey(env = process.env) {
   if (explicit) return explicit;
 
   const source = readGoAuthDocument(env);
-  const parsed = source?.document;
-  const entry = parsed && typeof parsed === 'object' ? parsed[GO_AUTH_PROVIDER_ID] : null;
-  if (!entry || typeof entry !== 'object') return '';
-  if (source.validated) return isGoApiCredential(entry) ? cleanSecret(entry.key) : '';
-  const type = String(entry.type || '').toLowerCase();
-  if (type && type !== 'api') return '';
-  return cleanSecret(entry.key);
+  if (source) {
+    const found = goApiKeyFromDocument(source);
+    if (found.present) return found.key;
+    // A restricted inline credential set replaces every other source. A file
+    // that simply has no Go entry may be an upgraded 1.x install whose live
+    // credentials now sit in the 2.x database, so that case falls through.
+    if (source.inline) return '';
+  }
+
+  return readV2ApiKey(GO_AUTH_PROVIDER_ID, env);
 }
 
 // The endpoint returns no workspace id, so the key itself is the identity.
@@ -271,6 +290,7 @@ module.exports = {
   isAbortError,
   goAuthPath,
   readGoApiKey,
+  goApiKeyFromDocument,
   goApiIdentity,
   parseGoUsage,
   fetchGoApi,
