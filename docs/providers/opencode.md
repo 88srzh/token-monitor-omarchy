@@ -1,9 +1,10 @@
 ---
-summary: "OpenCode provider notes: profile ownership, API/Web/local quota authority, ambient credentials and session detail."
+summary: "OpenCode provider notes: profile ownership, API/Web/local quota authority, ambient credentials, Go model allowances and session detail."
 ids: [opencode]
 read_when:
   - Changing OpenCode profiles, credential moves/merges or ambient auth discovery
   - Changing OpenCode Go API, Web cookie or local usage fallback precedence
+  - Changing the Go per-model allowance rows or the Console OAuth source
   - Changing OpenCode session metadata/detail or cross-device aggregation
 ---
 
@@ -19,9 +20,21 @@ The auto-detected API key is represented by a pinned reference, not copied blind
 
 Profile names are user labels, not stable account identity. API keys and Web responses provide canonical identity where possible, and aggregation keeps aliases bounded when older observations used legacy labels.
 
+## Credentials
+
+OpenCode 1.x keeps credentials in `auth.json`; 2.x keeps them in the `credential` table of `opencode.db`. The collector reads both stores for the two ambient credentials it understands: the `opencode-go` API key and the `opencode` Console OAuth session. A document that is present but has no Go entry may fall through to the 2.x database; an entry that exists but is not an API key, or a restricted `OPENCODE_AUTH_CONTENT` set, does not. An expired Console access token is ignored rather than refreshed, because refreshing it rotates a refresh token the OpenCode client owns. This module only reads the database.
+
 ## Source authority
 
 Single-account mode resolves Go quota in API, then Web, then local order when local estimates are enabled. Multi-account profiles use API then Web only: the device-wide local ledger cannot be safely attributed to an individual profile. Each component remains authoritative only for the windows it actually answers. Supplemental windows fill only kinds not already answered by the selected Go source; merge order must not duplicate quota.
+
+The Console OAuth session is an ambient Web source, used only when the refresh is otherwise ambient (no explicit profile or cookie). When no Go API key is present it can supply the aggregate windows; when one is present it supplies only the per-model rows. A cookie and the OAuth session must name the same workspace before their identities are merged.
+
+## Go model allowances
+
+The Bearer-key usage endpoint reports aggregate rolling, weekly and monthly percentages only. Per-model usage comes from the Console's `usage/models` endpoint, which is date-range scoped to the current Go billing period. Each used model with a known allowance becomes its own provider record (a distinct `accountKey`, labelled by model and plan) carrying one monthly `billing` window with `used`/`limit` in USD. They are separate records because the Limits view renders one billing window per provider; the bar widget renders every window it receives.
+
+Two constraints keep the rows honest. The Console endpoint is workspace-scoped, so rows are published only when `orgs/current` confirms a single-member Go workspace; a multi-member workspace would mix one member's usage into another's row. The monthly allowance itself is not in any API response, so `providers/opencode/goModels.js` carries the documentation values for the supported models and is the one place to update when the Go docs change. Unknown models get no row rather than a percentage against a guessed denominator. Only the monthly window is shown because the Console exposes per-model usage for a date range, not for the rolling and weekly windows; those remain the aggregate reading.
 
 An explicit credential is never replaced by an unrelated ambient credential. Remote credential errors surface only when the final single-account result remains unsuccessful. A lower-priority Web result, an accepted Zen response or an explicitly enabled local estimate may therefore mask an earlier API error. A missing Go subscription is not an authorization failure and may fall through quietly. Cancellation discards the scoped result rather than publishing an error row or papering it over with local estimates.
 

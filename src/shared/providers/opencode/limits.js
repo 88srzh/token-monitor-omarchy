@@ -5,9 +5,12 @@
 // Reached through providerFetchers() in src/shared/limits/collector.js.
 
 const crypto = require('node:crypto');
+const opencodeConsole = require('./console');
 const opencodeGoApi = require('./goApi');
+const opencodeGoModels = require('./goModels');
 const opencodeLimits = require('./goLimits');
 const opencodeProfiles = require('./profiles');
+const opencodeV2Credentials = require('./v2Credentials');
 const opencodeWeb = require('./web');
 const {
   normalizeLimitProvider,
@@ -101,6 +104,50 @@ function openCodeSupplementalZenWindows(takenWindows, zen) {
   });
 }
 
+// One row per Go model used in the current billing period. A separate provider
+// record (not extra windows on the Go row) is what lets every surface show the
+// model as its own account without changing how it groups quota windows: the
+// Limits view picks one billing window per provider, while the bar widget
+// renders every window it is given.
+//
+// Only models with recorded spend become rows. The Console's usage-by-model
+// table is period-based, so these rows intentionally carry the monthly window
+// only; the rolling and weekly windows remain the aggregate Go reading.
+function openCodeGoModelProviders(usage, context) {
+  if (!usage || usage.status !== 'ok' || !Array.isArray(usage.items)) return [];
+  const seen = new Set();
+  const providers = [];
+  for (const item of usage.items) {
+    if (!item || item.provider !== 'opencode-go') continue;
+    const cost = Number(item.costUsd);
+    if (!Number.isFinite(cost) || cost <= 0) continue;
+    if (seen.has(item.model)) continue;
+    const allowance = opencodeGoModels.goModelAllowance(item.model, context.plan);
+    if (!allowance) continue;
+    seen.add(item.model);
+    providers.push(normalizeLimitProvider({
+      provider: 'opencode',
+      accountKey: hashKey('opencode', `go-model:${context.workspaceId}:${item.model}`),
+      accountLabel: allowance.name,
+      planLabel: context.planLabel,
+      source: 'web',
+      sourceDetail: OPENCODE_COMPONENT_PROVENANCE_DETAIL,
+      status: 'ok',
+      updatedAt: context.updatedAt,
+      windows: [{
+        kind: 'billing',
+        windowMinutes: 43200,
+        used: cost,
+        limit: allowance.monthly,
+        currency: 'USD',
+        resetsAt: context.resetsAt || '',
+        label: 'Monthly'
+      }]
+    }));
+  }
+  return providers.filter(Boolean);
+}
+
 async function fetchOpenCodeLimits(options = {}, deps = {}) {
   const nowMs = (deps.now || Date.now)();
   const updatedAt = nowIso(nowMs);
@@ -109,6 +156,14 @@ async function fetchOpenCodeLimits(options = {}, deps = {}) {
   const readGoApiKey = deps.opencodeReadGoApiKey || ((env) => opencodeGoApi.readGoApiKey(env));
   const fetchGoWeb = deps.opencodeFetchGoWeb || ((cookie, d) => opencodeWeb.fetchGoWeb(cookie, d));
   const fetchZen = deps.opencodeFetchZen || ((cookie, d) => opencodeWeb.fetchZen(cookie, d));
+  const readConsoleSession = deps.opencodeReadConsoleSession
+    || ((env) => opencodeV2Credentials.readV2ConsoleSession(env));
+  const fetchConsoleGo = deps.opencodeFetchConsoleGo
+    || ((session, d) => opencodeConsole.fetchConsoleSession('go', session, d));
+  const fetchConsoleOrgs = deps.opencodeFetchConsoleOrgs
+    || ((session, d) => opencodeConsole.fetchConsoleOrgs(session, d));
+  const fetchUsageModels = deps.opencodeFetchUsageModels
+    || ((session, d) => opencodeConsole.fetchUsageModels(session, d));
 
   // Determine cookie sources: explicit profiles > legacy single cookie > env var
   const explicitProfiles = options.opencodeProfiles;
@@ -184,8 +239,18 @@ async function fetchOpenCodeLimits(options = {}, deps = {}) {
     // workspace identity wins below, so the result would publish one account's
     // quota — and merge it across devices — under the other's identity.
     const primaryApiKey = primary.apiKey || '';
+    // The Console OAuth session is the ambient account's own login. It may only
+    // supply identity and per-model usage when the refresh is otherwise ambient:
+    // an explicit profile or cookie is a different account assertion, and mixing
+    // the two would publish one account's model rows under another's identity.
+    const ambientOnly = !explicitProfiles || Object.keys(explicitProfiles).length === 0;
+    const oauthEligible = ambientOnly
+      && options.opencodeAmbientEnabled !== false
+      && cookies.length <= 1
+      && (cookies.length === 0 || primary.ambient === true);
+    const consoleSession = oauthEligible ? readConsoleSession(deps.env || process.env) : null;
     const webDeps = opencodeWeb.createProbeDeps({ now: () => nowMs, fetch: deps.fetch, signal: deps.signal, env: deps.env });
-    const [goApi, goWeb, zen] = await Promise.all([
+    const [goApi, goWeb, zen, oauthGo, oauthOrgs, usageModels] = await Promise.all([
       collectGoApi({
         env: deps.env || process.env,
         now: () => nowMs,
@@ -194,10 +259,29 @@ async function fetchOpenCodeLimits(options = {}, deps = {}) {
         apiKey: primaryApiKey
       }),
       cookie ? opencodeWeb.probeWebSource(fetchGoWeb, cookie, webDeps) : null,
-      cookie ? opencodeWeb.probeWebSource(fetchZen, cookie, webDeps) : null
+      cookie ? opencodeWeb.probeWebSource(fetchZen, cookie, webDeps) : null,
+      consoleSession ? opencodeWeb.probeWebSource(fetchConsoleGo, consoleSession, webDeps) : null,
+      consoleSession ? opencodeWeb.probeWebSource(fetchConsoleOrgs, consoleSession, webDeps) : null,
+      consoleSession ? opencodeWeb.probeWebSource(fetchUsageModels, consoleSession, webDeps) : null
     ]);
     const webIdentity = openCodeWebIdentity(goWeb, zen, cookie);
-    const webAccountKey = webIdentity.accountKey;
+    // A cookie and the OAuth session identify the same workspace by the same
+    // string. When only OAuth is present there is nothing to compare, so it is
+    // the ambient account by construction.
+    const oauthWorkspaceId = consoleSession
+      ? String(oauthGo?.workspaceId || consoleSession.orgId || '')
+      : '';
+    const oauthAccountMatches = !cookie || (
+      oauthWorkspaceId
+      && (
+        (goWeb?.status === 'ok' && goWeb.workspaceId === oauthWorkspaceId)
+        || (goWeb?.status !== 'ok' && zen?.status === 'ok' && zen.workspaceId === oauthWorkspaceId)
+      )
+    );
+    const oauthWebAccountKey = oauthAccountMatches && oauthWorkspaceId
+      ? hashKey('opencode', `workspace:${oauthWorkspaceId}`)
+      : '';
+    const webAccountKey = webIdentity.accountKey || oauthWebAccountKey;
 
     const windows = [];
     let status = 'notConfigured';
@@ -226,13 +310,21 @@ async function fetchOpenCodeLimits(options = {}, deps = {}) {
       windows.push(...goWeb.windows.map((window) => ({ ...window, source: 'web' })));
       status = 'ok'; source = 'web'; accountLabel = 'Go';
       accountKey = hashKey('opencode', `go:${goWeb.workspaceId || ''}`);
-    } else if (goLocal.status === 'ok' && goApi.entitled !== false && goWeb?.entitled !== false) {
+    } else if (oauthAccountMatches && oauthGo && oauthGo.status === 'ok'
+      && Array.isArray(oauthGo.windows) && oauthGo.windows.length > 0) {
+      windows.push(...oauthGo.windows.map((window) => ({ ...window, source: 'web' })));
+      status = 'ok'; source = 'web'; accountLabel = 'Go';
+      accountKey = oauthWebAccountKey
+        || hashKey('opencode', `workspace:${oauthWorkspaceId || ''}`);
+    } else if (goLocal.status === 'ok' && goApi.entitled !== false
+      && goWeb?.entitled !== false && oauthGo?.entitled !== false) {
       // An explicit API or Console no-subscription answer outranks old local
       // rows: the estimate cannot know whether their Go plan has since ended.
       windows.push(...goLocal.windows.map((window) => ({ ...window, source: 'local' })));
       status = 'ok'; accountLabel = 'Go';
       accountKey = hashKey('opencode', goLocal.identity || 'go');
-    } else if (goLocal.status === 'unavailable' && goApi.entitled !== false && goWeb?.entitled !== false) {
+    } else if (goLocal.status === 'unavailable' && goApi.entitled !== false
+      && goWeb?.entitled !== false && oauthGo?.entitled !== false) {
       status = 'unavailable';
     }
 
@@ -259,6 +351,8 @@ async function fetchOpenCodeLimits(options = {}, deps = {}) {
       // otherwise read as "not configured" and leave the user nothing to fix.
       const surfaced = (remoteFail.includes(goApi.status) && { status: goApi.status, source: 'api' })
         || (goWeb && remoteFail.includes(goWeb.status) && { status: goWeb.status, source: 'web' })
+        || (oauthAccountMatches && oauthGo && remoteFail.includes(oauthGo.status)
+          && { status: oauthGo.status, source: 'web' })
         || (zen && remoteFail.includes(zen.status) && { status: zen.status, source: 'web' });
       if (surfaced) { status = surfaced.status; source = surfaced.source; }
     }
@@ -272,17 +366,26 @@ async function fetchOpenCodeLimits(options = {}, deps = {}) {
     // cookie's workspace identity wins above, so without this a device holding
     // only the key would never group with the account it belongs to.
     const apiAlias = goApi.identity ? hashKey('opencode', goApi.identity) : '';
-    return normalizeLimitProvider({
+    // The Console session names the same workspace with the same stable id a
+    // cookie does. Publishing it as an alias lets a key-only device group with
+    // the cookie/Console devices of that account.
+    const oauthAliases = oauthAccountMatches && oauthWorkspaceId
+      ? [
+        hashKey('opencode', `go:${oauthWorkspaceId}`),
+        hashKey('opencode', `zen:${oauthWorkspaceId}`)
+      ]
+      : [];
+    const provider = normalizeLimitProvider({
       provider: 'opencode',
       // The account this row is for, whether or not more than one exists. Left
       // off, a machine that resolves to exactly one OpenCode account showed it
       // as "Account 1", and enabling a second account did not fix it until a
       // restart: the scoped refresh only rebuilds the account it targets, so
       // this row kept its nameless record while the new one arrived named.
-      accountName: primary.name || '',
+      accountName: primary.name || (oauthEligible ? OPENCODE_AMBIENT_ACCOUNT_NAME : ''),
       accountKey,
       webAccountKey,
-      accountKeyAliases: [...webIdentity.aliases, apiAlias].filter(Boolean),
+      accountKeyAliases: [...webIdentity.aliases, apiAlias, ...oauthAliases].filter(Boolean),
       accountLabel,
       source,
       sourceDetail: OPENCODE_COMPONENT_PROVENANCE_DETAIL,
@@ -291,6 +394,36 @@ async function fetchOpenCodeLimits(options = {}, deps = {}) {
       windows,
       balanceUsd
     });
+
+    // The usage-by-model endpoint is workspace-scoped, while a Go subscription
+    // meters each member separately. Publishing its rows for a multi-member
+    // workspace would show one member another's numbers, so the org check is
+    // part of the source's eligibility, not a display filter.
+    const hasGoReading = (goApi.status === 'ok' && goApi.windows.length > 0)
+      || (goWeb?.status === 'ok' && goWeb.windows.length > 0)
+      || (oauthAccountMatches && oauthGo?.status === 'ok'
+        && Array.isArray(oauthGo.windows) && oauthGo.windows.length > 0);
+    const monthly = windows.find((window) => window.kind === 'billing' && window.metric !== 'credits');
+    const goModelRows = status === 'ok'
+      && hasGoReading
+      && oauthAccountMatches
+      && oauthWorkspaceId
+      && oauthOrgs?.status === 'ok'
+      && oauthOrgs.orgId === oauthWorkspaceId
+      && oauthOrgs.singleMember === true
+      && oauthOrgs.hasGoSubscription === true
+      ? openCodeGoModelProviders(usageModels, {
+        workspaceId: oauthWorkspaceId,
+        plan: oauthGo?.plan || '',
+        planLabel: opencodeGoModels.goPlanLabel(oauthGo?.plan || ''),
+        updatedAt,
+        resetsAt: monthly?.resetsAt || oauthGo?.access?.endsAt || ''
+      })
+      : [];
+
+    return goModelRows.length > 0
+      ? [provider, ...goModelRows].filter(Boolean)
+      : provider;
   }
 
   // ── Multi-account (2+ cookies): separate per-profile providers ────────────
@@ -472,5 +605,6 @@ async function fetchOpenCodeProfile(name, cookie, fetchGoWeb, fetchZen, nowMs, u
 
 module.exports = {
   fetchOpenCodeLimits,
-  fetchOpenCodeProfile
+  fetchOpenCodeProfile,
+  openCodeGoModelProviders
 };

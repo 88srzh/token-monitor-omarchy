@@ -35,6 +35,23 @@ function jsonResponse(status, body) {
   return { status, json: async () => body };
 }
 
+function withV2Db(key) {
+  const { DatabaseSync } = require('node:sqlite');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'opencode-v2-go-'));
+  const dataDir = path.join(dir, 'opencode');
+  fs.mkdirSync(dataDir, { recursive: true });
+  const db = new DatabaseSync(path.join(dataDir, 'opencode.db'));
+  db.exec(`
+    CREATE TABLE credential (
+      id TEXT PRIMARY KEY, integration_id TEXT, value TEXT, active INTEGER, time_updated INTEGER
+    )
+  `);
+  db.prepare('INSERT INTO credential VALUES (?, ?, ?, 1, ?)')
+    .run('cred', 'opencode-go', JSON.stringify({ type: 'key', key }), Date.now());
+  db.close();
+  return dir;
+}
+
 test('readGoApiKey reads the opencode-go entry from auth.json', () => {
   const { env } = withDataDir(JSON.stringify({
     'opencode-go': { type: 'api', key: 'go-key-123' }
@@ -54,6 +71,32 @@ test('readGoApiKey survives a missing or corrupt auth.json', () => {
   assert.strictEqual(readGoApiKey(withDataDir('{not json').env), '');
   assert.strictEqual(readGoApiKey(withDataDir('null').env), '');
   assert.strictEqual(readGoApiKey(withDataDir('{"opencode-go":{"type":"oauth"}}').env), '');
+});
+
+test('readGoApiKey reads the Go key from the OpenCode 2.x credential database', () => {
+  // 2.x stopped writing auth.json; the key lives in opencode.db instead.
+  assert.strictEqual(readGoApiKey({ XDG_DATA_HOME: withV2Db('v2-go-key') }), 'v2-go-key');
+});
+
+test('an auth.json without a Go entry falls through to the 2.x database', () => {
+  const dataDir = withDataDir('{"opencode":{"type":"api","key":"zen-only"}}');
+  const env = { ...dataDir.env, OPENCODE_DB: path.join(withV2Db('v2-go-key'), 'opencode', 'opencode.db') };
+  // Both stores resolve to the same home here; the database is the point.
+  assert.strictEqual(readGoApiKey(env), 'v2-go-key');
+});
+
+test('an invalid auth.json Go entry does not fall through to another store', () => {
+  const dataDir = withDataDir('{"opencode-go":{"type":"oauth","key":"not-an-api-key"}}');
+  const env = { ...dataDir.env, OPENCODE_DB: path.join(withV2Db('v2-go-key'), 'opencode', 'opencode.db') };
+  assert.strictEqual(readGoApiKey(env), '');
+});
+
+test('a restricted inline credential set does not read the 2.x database', () => {
+  const env = {
+    OPENCODE_AUTH_CONTENT: JSON.stringify({ opencode: { type: 'api', key: 'zen-only' } }),
+    OPENCODE_DB: path.join(withV2Db('v2-go-key'), 'opencode', 'opencode.db')
+  };
+  assert.strictEqual(readGoApiKey(env), '');
 });
 
 // OpenCode reads its own credentials from OPENCODE_AUTH_CONTENT before
