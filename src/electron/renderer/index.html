@@ -24,7 +24,7 @@
             <button id="monthPeriodTab" class="tab" data-period="month" data-period-slot="month" aria-haspopup="menu" aria-expanded="false">MONTH</button>
             <button class="tab" data-period="allTime" data-period-slot="allTime">TOTAL</button>
           </nav>
-          <div id="monthPeriodMenu" class="view-switcher-menu period-menu hidden" role="menu" aria-labelledby="monthPeriodTab">
+          <div id="monthPeriodMenu" class="view-switcher-menu period-menu hidden" popover="manual" role="menu" aria-labelledby="monthPeriodTab">
             <button class="view-switcher-menu-item" type="button" role="menuitemradio" data-fixed-period="month"><span class="view-switcher-menu-label" data-i18n="periodRange.month">This month</span></button>
             <button class="view-switcher-menu-item" type="button" role="menuitemradio" data-fixed-period="week"><span class="view-switcher-menu-label" data-i18n="periodRange.week">This week</span></button>
             <button class="view-switcher-menu-item" type="button" role="menuitemradio" data-fixed-period="last7"><span class="view-switcher-menu-label" data-i18n="periodRange.last7">Last 7 days</span></button>
@@ -394,6 +394,9 @@
                       <option value="tokens" data-i18n="settings.tray.tokensToday">Tokens Today</option>
                       <option value="cost" data-i18n="settings.tray.costToday">Cost Today ($1.23)</option>
                       <option value="both" data-i18n="settings.tray.bothToday">Tokens + Cost Today</option>
+                      <option value="tokensMonth" data-i18n="settings.tray.tokensMonth">Tokens This Month</option>
+                      <option value="costMonth" data-i18n="settings.tray.costMonth">Cost This Month ($1.23)</option>
+                      <option value="bothMonth" data-i18n="settings.tray.bothMonth">Tokens + Cost This Month</option>
                       <option value="tokensAll" data-i18n="settings.tray.tokensTotal">Tokens Total</option>
                       <option value="costAll" data-i18n="settings.tray.costTotal">Cost Total ($8.28)</option>
                       <option value="bothAll" data-i18n="settings.tray.bothTotal">Tokens + Cost Total</option>
@@ -417,6 +420,9 @@
                       <option value="tokens" data-i18n="settings.tray.tokensToday">Tokens Today</option>
                       <option value="cost" data-i18n="settings.tray.costToday">Cost Today ($1.23)</option>
                       <option value="both" data-i18n="settings.tray.bothToday">Tokens + Cost Today</option>
+                      <option value="tokensMonth" data-i18n="settings.tray.tokensMonth">Tokens This Month</option>
+                      <option value="costMonth" data-i18n="settings.tray.costMonth">Cost This Month ($1.23)</option>
+                      <option value="bothMonth" data-i18n="settings.tray.bothMonth">Tokens + Cost This Month</option>
                       <option value="tokensAll" data-i18n="settings.tray.tokensTotal">Tokens Total</option>
                       <option value="costAll" data-i18n="settings.tray.costTotal">Cost Total ($8.28)</option>
                       <option value="bothAll" data-i18n="settings.tray.bothTotal">Tokens + Cost Total</option>
@@ -1157,6 +1163,47 @@
                 <div id="workbuddyAccountErrorMessage" class="settings-note error hidden" role="alert"></div>
               </div>
             </div>
+            <div id="minimaxAccountGroup" class="settings-group cursor-account-group">
+              <button id="minimaxSettingsToggle" class="settings-group-header cursor-settings-toggle" type="button" aria-expanded="false" aria-controls="minimaxSettingsDetails">
+                <span data-i18n="settings.minimax.title">MiniMax Accounts</span>
+                <span class="cursor-settings-summary">
+                  <span id="minimaxStatus" class="cursor-status-pill">Not configured</span>
+                  <span class="cursor-disclosure-icon" aria-hidden="true"></span>
+                </span>
+              </button>
+              <div id="minimaxSettingsDetails" class="cursor-settings-details hidden">
+                <div class="settings-actions">
+                  <button id="minimaxOpenBrowser" data-i18n="settings.minimax.openBrowser">Open MiniMax billing page</button>
+                  <button id="minimaxRefreshButton" data-i18n="settings.common.refresh">Refresh</button>
+                </div>
+                <div id="minimaxKeyList" class="managed-account-list"></div>
+                <div class="opencode-credential-fields">
+                  <label>
+                    <span data-i18n="settings.minimax.billingMode">Billing type</span>
+                    <select id="minimaxBillingModeInput" class="credential-input">
+                      <option value="token-plan" data-i18n="settings.minimax.billingTokenPlan">Token Plan</option>
+                      <option value="api" data-i18n="settings.minimax.billingApi">API billing</option>
+                    </select>
+                  </label>
+                  <label>
+                    <span data-i18n="settings.minimax.apiRegion">API region</span>
+                    <select id="minimaxApiRegionInput" class="credential-input">
+                      <option value="auto" data-i18n="settings.minimax.regionAuto">Auto</option>
+                      <option value="cn" data-i18n="settings.minimax.regionCn">China (api.minimaxi.com)</option>
+                      <option value="intl" data-i18n="settings.minimax.regionIntl">International (api.minimax.io)</option>
+                    </select>
+                  </label>
+                  <label>
+                    <span data-i18n="settings.limits.capability.apiKey">API key</span>
+                    <input id="minimaxApiKeyInput" class="credential-input" type="password" autocomplete="off" spellcheck="false" placeholder="API key" data-i18n-placeholder="settings.minimax.apiKeyPlaceholder" />
+                  </label>
+                  <div class="settings-actions">
+                    <button id="minimaxKeySubmit" data-i18n="settings.minimax.saveApiKey">Save API key</button>
+                  </div>
+                </div>
+                <div id="minimaxErrorMessage" class="settings-note error hidden" role="alert"></div>
+              </div>
+            </div>
             <div id="openrouterAccountGroup" class="settings-group cursor-account-group">
               <button id="openrouterSettingsToggle" class="settings-group-header cursor-settings-toggle" type="button" aria-expanded="false" aria-controls="openrouterSettingsDetails">
                 <span data-i18n="settings.openrouter.title">OpenRouter Accounts</span>
@@ -1594,6 +1641,7 @@
                 </div>
                 <div id="syncConnectionSaveError" class="hub-status error" role="alert" hidden></div>
               </div>
+              <div id="deviceIconLocalRow" class="settings-item"><label for="deviceIconInput" class="settings-item-text" data-i18n="devices.icon.thisDevice">This device’s icon</label><span class="device-icon-local-control"><select id="deviceIconInput"></select></span></div>
               <label id="syncUploadIntervalRow" class="sync-upload-interval-row settings-item" hidden><span class="settings-item-text"><span class="settings-item-title" data-i18n="settings.sync.uploadInterval">Sync upload frequency</span></span>
                 <select id="syncUploadIntervalInput">
                   <option value="0" data-i18n="settings.sync.uploadInterval.live">Live</option>
@@ -1678,6 +1726,11 @@
       <section id="serviceStatusPanel" class="service-status-panel hidden"></section>
       <section id="limitsPanel" class="limits-panel hidden"></section>
       <section id="trendsPanel" class="trends-panel hidden"></section>
+      <div id="sessionToolFilter" class="session-tool-filter hidden" role="group">
+        <button id="sessionToolPrevious" class="session-tool-scroll" type="button" disabled><span class="session-page-icon" aria-hidden="true"></span></button>
+        <div id="sessionToolFilterItems" class="session-tool-filter-items"></div>
+        <button id="sessionToolNext" class="session-tool-scroll session-tool-scroll-next" type="button" disabled><span class="session-page-icon" aria-hidden="true"></span></button>
+      </div>
       <div id="sessionPagerHost" class="session-pager-host hidden"></div>
       <footer class="footer">
         <div id="viewSwitcher" class="view-switcher"></div>
@@ -1760,6 +1813,7 @@
     <script src="../../shared/limits/windowLabels.js"></script>
     <script src="../../shared/limits/usageItems.js"></script>
     <script src="../../shared/limits/windowText.js"></script>
+    <script src="../limits/historyIdentity.js"></script>
     <script src="limits/windowsView.js"></script>
     <script src="trayBars.js"></script>
     <script src="usageCharts.js"></script>
@@ -1773,6 +1827,9 @@
     <script src="appUpdatePresentation.js"></script>
     <script src="../../shared/providers/workbuddy/identity.js"></script>
     <script src="limits/providerPresentation.js"></script>
+    <script src="../../shared/plugins/localized.js"></script>
+    <script src="pluginCredentials.js"></script>
+    <script src="limits/pluginSettings.js"></script>
     <script src="../providers/codex/accountControl.js"></script>
     <script src="limits/displayMode.js"></script>
     <script src="limits/resetMotion.js"></script>
@@ -1803,9 +1860,11 @@
     <script src="statsRenderScheduler.js"></script>
     <script src="allTimeSessions.js"></script>
     <script src="hubBuildPresentation.js"></script>
+    <script src="../../shared/deviceKind.js"></script>
+    <script src="selectControl.js"></script>
+    <script src="deviceIcons.js"></script>
     <script src="deviceBreakdown.js"></script>
     <script src="syncDevicePanel.js"></script>
-    <script src="selectControl.js"></script>
     <script src="usageAttributionRows.js"></script>
     <script src="toolDetails.js"></script>
     <script src="../../shared/projectKey.js"></script>
@@ -1848,6 +1907,7 @@
     <script src="notch/pageSettings.js"></script>
     <script src="displaySettings.js"></script>
     <script src="displaySettingsPreview.js"></script>
+    <script src="contentBlur.js"></script>
     <script src="app.js"></script>
   </body>
 </html>
