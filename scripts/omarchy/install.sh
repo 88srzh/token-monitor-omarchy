@@ -57,6 +57,21 @@ if [ "${1:-}" = '--uninstall' ]; then
 fi
 [ $# -eq 0 ] || die "usage: $0 [--uninstall]"
 
+# The runtime install is a checkout detached at a reviewed commit, not a
+# development clone. Coding agents auto-discover a root AGENTS.md, so a
+# marketplace install must not hand them contributor instructions (or the
+# generated-code helpers those instructions name) without an explicit opt-in.
+# Branch checkouts are development clones and keep the file; detached runtime
+# checkouts use a sparse checkout so it stays out of the working tree.
+if command -v git >/dev/null && git -C "$repo" rev-parse --git-dir >/dev/null 2>&1; then
+    if [ "${TOKEN_MONITOR_KEEP_AGENT_INSTRUCTIONS:-0}" = 1 ]; then
+        git -C "$repo" sparse-checkout disable >/dev/null 2>&1 || true
+    elif ! git -C "$repo" symbolic-ref -q HEAD >/dev/null 2>&1; then
+        git -C "$repo" sparse-checkout set --no-cone '/*' '!/AGENTS.md' >/dev/null 2>&1 \
+            || rm -f "$repo/AGENTS.md"
+    fi
+fi
+
 command -v omarchy-shell >/dev/null || die 'omarchy-shell not found: this needs Omarchy 4 or newer.'
 node=$(command -v node) || die 'Node.js 22.15+ is required (`mise use -g node@lts`).'
 "$node" -e 'const [a, b] = process.versions.node.split(".").map(Number); process.exit(a > 22 || (a === 22 && b >= 15) ? 0 : 1)' \

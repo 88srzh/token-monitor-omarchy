@@ -48,6 +48,17 @@ test('the installer adds the plugin this folder publishes and writes the config 
   assert.ok(feed.includes(`"/${relative}"`), relative);
 });
 
+// The marketplace blocks an installed checkout that hands a coding agent
+// contributor instructions. Runtime installs are detached at a reviewed
+// commit; branch checkouts are development clones and keep AGENTS.md.
+test('the installer keeps agent instructions out of a detached runtime checkout', () => {
+  const install = fs.readFileSync(path.join(root, 'scripts', 'omarchy', 'install.sh'), 'utf8');
+  assert.match(install, /TOKEN_MONITOR_KEEP_AGENT_INSTRUCTIONS/);
+  assert.match(install, /symbolic-ref -q HEAD/);
+  assert.match(install, /sparse-checkout set --no-cone '\/\*' '!\/AGENTS\.md'/);
+  assert.match(install, /rm -f "\$repo\/AGENTS\.md"/);
+});
+
 test('the widget launches the bridge at its real path', () => {
   const feed = fs.readFileSync(path.join(pluginDir, 'Feed.qml'), 'utf8');
   const match = feed.match(/root\.repoRoot \+ "(\/[^"]+)"/);
