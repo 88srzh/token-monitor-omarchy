@@ -28,6 +28,8 @@ git clone https://github.com/88srzh/token-monitor-omarchy.git ~/.local/share/tok
 
 If you added the widget first with `omarchy plugin add https://github.com/88srzh/omarchy-token-monitor.git`, run the same command: the installer keeps the widget where it is and points it at the backend. Until then the icon is dimmed and the panel says "backend not installed".
 
+A detached checkout is the runtime install, so it uses a sparse checkout that leaves the contributor guide `AGENTS.md` out of the working tree; a branch checkout is treated as a development clone and keeps it. Run the installer with `TOKEN_MONITOR_KEEP_AGENT_INSTRUCTIONS=1` to keep or restore it.
+
 The installer writes these, and nothing else:
 
 | What | Where |

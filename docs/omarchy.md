@@ -35,6 +35,8 @@ The script is idempotent; re-run it after `git pull`. It adds the widget from it
 | The widget, a clone of its repository | `~/.config/omarchy/plugins/io.github.88srzh.token-monitor/` |
 | The widget enabled in the bar's right section, on first install | `~/.config/omarchy/shell.json`, through `omarchy plugin enable` |
 
+A runtime checkout is detached at the reviewed commit, so the installer treats it differently from a development clone: it marks the checkout sparse to leave the contributor guide `AGENTS.md` out of the working tree, because coding agents discover that file automatically. Branch checkouts keep it. Run the installer with `TOKEN_MONITOR_KEEP_AGENT_INSTRUCTIONS=1` to keep or restore it.
+
 Installs from before the widget had its own repository kept a copy under the id `token-monitor`. The installer moves that to the new id in the same place on the bar, keeps its period setting and deletes the copy.
 
 The widget can also be added on its own, with `omarchy plugin add` or from the [Omarchy plugin marketplace](https://plugins.omarchy.org). It then shows "backend not installed" until the installer above runs, which leaves it where it is on the bar.
