@@ -182,6 +182,12 @@
       return result(null, window.detail || (compact ? counted(window, showUsed, compact) : ''));
     }
 
+    if (id === 'hark' && (kind === 'daily' || billing)) {
+      const amount = finite(showUsed ? window.used : window.remaining);
+      const limit = finite(window.limit);
+      return result(null, compact && amount !== null && limit > 0 ? `${compact(amount)} / ${compact(limit)}` : '');
+    }
+
     if (id === 'opencode') {
       // Only the per-model Go rows carry a dollar pair. The aggregate Go
       // monthly window is a percentage with no denominator, and the Zen

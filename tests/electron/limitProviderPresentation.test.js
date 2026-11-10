@@ -3241,7 +3241,7 @@ test('Kimi, Droid and MiMo limits reuse their tracked-client colors', () => {
   assert.match(app, /const color = limitProviderColor\(id\);/);
   const dockColor = vm.runInNewContext(
     `(${functionBody(dock, 'limitProviderColor', 'providerColor')})`,
-    { clientColors: { mimo: '#111111', xiaomi: '#222222', droid: '#333333', default: '#444444' } }
+    { pluginQuotaMetadata: () => null, clientColors: { mimo: '#111111', xiaomi: '#222222', droid: '#333333', default: '#444444' } }
   );
   assert.equal(dockColor('mimo'), '#111111');
   assert.equal(dockColor('factory'), '#333333');
@@ -3300,7 +3300,7 @@ test('an attached subscription adds no resting decoration to the plan label', ()
 
 test('subscription form controls stay shrinkable so a long option cannot overflow the panel', () => {
   const styles = readRendererFile('styles.css');
-  const block = cssBlock(styles, '.subscription-add-body .settings-row > :is(input, select)');
+  const block = cssBlock(styles, '.subscription-add-body .settings-row > :is(input, select, .select-control-trigger)');
   assert.match(block, /flex: 1 1 0;/);
   assert.match(block, /min-width: 0;/);
   // Descendant, not child: each kind of record wraps its own rows, so a child
