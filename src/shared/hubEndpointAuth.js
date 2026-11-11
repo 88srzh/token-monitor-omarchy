@@ -13,6 +13,11 @@ const crypto = require('node:crypto');
 const HUB_AUTH_DOMAIN = 'token-monitor-hub-auth-v1';
 const HUB_AUTH_NONCE_BYTES = 32;
 const HUB_AUTH_NONCE_PATTERN = /^[0-9a-f]{64}$/;
+// The expected payload is a nonce and a 64-character proof. Cap the read well
+// above that but far below anything that could pressure the client if the
+// endpoint is an impostor; the cap is enforced while the body streams, not
+// after json()/text() has buffered it.
+const HUB_AUTH_MAX_RESPONSE_BYTES = 4096;
 
 function isHubAuthNonce(value) {
   return typeof value === 'string' && HUB_AUTH_NONCE_PATTERN.test(value);
@@ -31,6 +36,55 @@ function createHubAuthNonce(randomBytes = crypto.randomBytes) {
 function proofMatches(actual, expected) {
   if (!isHubAuthNonce(actual) || !isHubAuthNonce(expected)) return false;
   return crypto.timingSafeEqual(Buffer.from(actual, 'hex'), Buffer.from(expected, 'hex'));
+}
+
+function declaredLengthTooLarge(response, maxBytes) {
+  const value = response.headers?.get?.('content-length');
+  if (value === undefined || value === null || value === '') return false;
+  const length = Number(value);
+  return Number.isFinite(length) && length > maxBytes;
+}
+
+// Read the challenge response with a strict byte ceiling before JSON parsing.
+// A caller cannot trust the endpoint yet, so Content-Length alone is not
+// enough: a chunked response has to be bounded while it is consumed.
+async function readBoundedJson(response, maxBytes, abort) {
+  const body = response.body;
+  if (!body || typeof body.getReader !== 'function') {
+    throw new Error('hub endpoint proof failed: invalid response body');
+  }
+  const reader = body.getReader();
+  const chunks = [];
+  let bytes = 0;
+  try {
+    for (;;) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      if (!value) continue;
+      bytes += value.byteLength;
+      if (bytes > maxBytes) {
+        // Stop the transfer instead of waiting for a malicious stream to
+        // acknowledge cancellation, then reject without buffering the rest.
+        try { abort?.(); } catch (_) {}
+        try { reader.cancel('response too large').catch(() => {}); } catch (_) {}
+        throw new Error('hub endpoint proof failed: response too large');
+      }
+      chunks.push(value);
+    }
+  } finally {
+    try { reader.releaseLock(); } catch (_) {}
+  }
+  const merged = new Uint8Array(bytes);
+  let offset = 0;
+  for (const chunk of chunks) {
+    merged.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  try {
+    return JSON.parse(new TextDecoder().decode(merged));
+  } catch (error) {
+    throw new Error('hub endpoint proof failed: invalid response', { cause: error });
+  }
 }
 
 // Resolves true when the endpoint proves it knows `secret`, or when there is no
@@ -63,7 +117,16 @@ async function verifyHubEndpoint({
       ...(controller ? { signal: controller.signal } : {})
     });
     if (!response.ok) throw new Error(`hub endpoint proof failed: HTTP ${response.status}`);
-    const body = await response.json();
+    if (declaredLengthTooLarge(response, HUB_AUTH_MAX_RESPONSE_BYTES)) {
+      try { controller?.abort(new Error('hub endpoint proof failed: response too large')); } catch (_) {}
+      try { response.body?.cancel?.('response too large').catch?.(() => {}); } catch (_) {}
+      throw new Error('hub endpoint proof failed: response too large');
+    }
+    const body = await readBoundedJson(
+      response,
+      HUB_AUTH_MAX_RESPONSE_BYTES,
+      () => controller?.abort(new Error('hub endpoint proof failed: response too large'))
+    );
     if (!body || body.nonce !== nonce || !proofMatches(body.proof, hubAuthProof(value, nonce))) {
       throw new Error('hub endpoint proof failed: wrong secret or impostor endpoint');
     }
