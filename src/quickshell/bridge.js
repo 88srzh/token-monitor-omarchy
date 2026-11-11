@@ -19,6 +19,7 @@
 // argument.
 
 const { loadDotEnv, parseArgs } = require('../shared/config');
+const { verifyHubEndpoint } = require('../shared/hubEndpointAuth');
 const { buildDashboardModel } = require('./dashboardModel');
 
 const RETRY_MIN_MS = 1000;
@@ -58,7 +59,8 @@ function createSseParser(onEvent) {
 }
 
 function runBridge({
-  hubUrl, secret = '', write, fetchImpl = fetch, now = () => Date.now(), tickMs = TICK_MS
+  hubUrl, secret = '', write, fetchImpl = fetch, now = () => Date.now(), tickMs = TICK_MS,
+  verifyEndpoint = verifyHubEndpoint
 }) {
   const base = String(hubUrl).replace(/\/$/, '');
   let stopped = false;
@@ -85,6 +87,7 @@ function runBridge({
     if (historyLoading || revision === historyRevision) return;
     historyLoading = true;
     try {
+      await verifyEndpoint({ hubUrl: base, secret, fetchImpl });
       const response = await fetchImpl(`${base}/api/history`, { headers: authHeaders({ accept: 'application/json' }) });
       if (!response.ok) return;
       const body = await response.json();
@@ -124,6 +127,8 @@ function runBridge({
       stallTimer = setTimeout(() => controller.abort(new Error('stream stalled')), STALL_MS);
     };
     try {
+      // Prove the endpoint owns the secret before sending the bearer header.
+      await verifyEndpoint({ hubUrl: base, secret, fetchImpl });
       const headers = authHeaders({ accept: 'text/event-stream' });
       armStall();
       const response = await fetchImpl(`${base}/api/stats/stream`, { headers, signal: controller.signal });

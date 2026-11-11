@@ -19,6 +19,7 @@ const { createSyncPayloadUploader } = require('../shared/syncPayload');
 const postSyncPayload = createSyncPayloadUploader();
 const { createAgentTitleSync } = require('./titleSync');
 const { HUB_RESPONSE_HEADER, HUB_RESPONSE_MINIMAL } = require('../shared/hubProtocol');
+const { verifyHubEndpoint } = require('../shared/hubEndpointAuth');
 const { applyProjectRollups } = require('../shared/usage');
 const { runAgent, runAgentOnce } = require('./runtime');
 const {
@@ -149,6 +150,9 @@ function summaryWithSessionUsageArchive(summary, now = new Date()) {
 const titleSyncNegotiator = createAgentTitleSync({ dataDir: path.dirname(pidFilePath()), fetchFn: fetch });
 
 async function postUsage(summary) {
+  // Never hand the bearer to an endpoint that has not proved it owns the
+  // secret; a local impostor can otherwise bind the free loopback port.
+  await verifyHubEndpoint({ hubUrl, secret, fetchImpl: fetch });
   const authHeaders = secret ? { authorization: `Bearer ${secret}` } : {};
   const titleSyncOptions = await titleSyncNegotiator.negotiate({
     hubUrl, headers: authHeaders, deviceId: summary.deviceId || deviceId, enabled: syncSessionTitles
@@ -205,9 +209,18 @@ async function main() {
   });
   // Reconcile old destinations even if the first collector scan later fails.
   // Dry runs never read/write private cleanup state or make sync requests.
-  if (!dryRun) await titleSyncNegotiator.negotiate({
-    hubUrl, deviceId, headers: secret ? { authorization: `Bearer ${secret}` } : {}, enabled: syncSessionTitles
-  });
+  // The endpoint proof runs first so the bearer is never sent to an impostor;
+  // a failure leaves collection running and uploads fail closed on each tick.
+  if (!dryRun) {
+    try {
+      await verifyHubEndpoint({ hubUrl, secret, fetchImpl: fetch });
+      await titleSyncNegotiator.negotiate({
+        hubUrl, deviceId, headers: secret ? { authorization: `Bearer ${secret}` } : {}, enabled: syncSessionTitles
+      });
+    } catch (error) {
+      console.warn(`[sync] hub endpoint proof failed: ${error.message}`);
+    }
+  }
   const runtimeOptions = {
     envelope: { deviceId, agentVersion: appVersion(), agentRuntime: 'headless-agent' },
     usageOptions,

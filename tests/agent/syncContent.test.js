@@ -9,15 +9,22 @@ const vm = require('node:vm');
 const { createRequire } = require('node:module');
 const { createSessionTitleSyncNegotiator, syncSessionTitlesEnabled } = require('../../src/shared/syncContent');
 const { postSyncPayload } = require('../../src/shared/syncPayload');
+const { hubAuthProof } = require('../../src/shared/hubEndpointAuth');
 
 const request = { hubUrl: 'https://hub.example', headers: { authorization: 'Bearer secret' }, deviceId: 'a/b', enabled: true };
 const capability = (enabled = true) => ({ ok: true, version: 1, sessionTitles: { enabled }, sharedSettings: true });
 
-function fakeBackend({ supported = true, allowed = true } = {}) {
+function fakeBackend({ supported = true, allowed = true, secret = 'secret', badProof = false } = {}) {
   const requests = [];
   let generation = 0;
   let enabled = false;
   const fetchFn = async (url, options = {}) => {
+    // The endpoint proof is transport setup, not a business request; keep it
+    // out of the request journal these tests assert on.
+    if (url.includes('/api/auth/challenge')) {
+      const nonce = new URL(url).searchParams.get('nonce');
+      return Response.json({ nonce, proof: badProof ? '0'.repeat(64) : hubAuthProof(secret, nonce) });
+    }
     requests.push({ url, ...options, ...(options.body ? { payload: JSON.parse(options.body) } : {}) });
     if (url.endsWith('/api/sync/content')) return supported ? Response.json(capability(allowed)) : new Response('legacy', { status: 404 });
     if (url.includes('/api/sync/titles/')) {
@@ -179,6 +186,47 @@ test('agent entrypoint honors default/CLI/env consent and wires safe negotiation
   }
 });
 
+
+test('agent delivery refuses to send the bearer to an endpoint that cannot prove the secret', async (t) => {
+  // The fake endpoint stands in for another local Unix user holding the free
+  // loopback port while the real hub is absent; no bearer may reach it.
+  const filename = path.resolve(__dirname, '../../src/agent/agent.js');
+  const agentRequire = createRequire(filename);
+  const source = fs.readFileSync(filename, 'utf8');
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'tm-agent-impostor-'));
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }));
+  const backend = fakeBackend({ badProof: true });
+  let rejectDelivery;
+  const delivered = new Promise((resolve, reject) => { rejectDelivery = reject; });
+  const summary = { deviceId: 'a', today: { totalTokens: 1 }, month: { totalTokens: 1 }, allTime: { totalTokens: 1 } };
+  const context = {
+    require(id) {
+      if (id === '../shared/config') return { ...agentRequire(id), loadDotEnv() {}, pidFilePath: () => path.join(directory, 'agent.pid') };
+      if (id === './seedClients') return { seedAgentClients: clients => clients };
+      if (id === '../shared/usage/sessionUsageArchiveStore') return { createSessionUsageArchiveStore: () => ({ close() {} }) };
+      if (id === '../shared/providers/cursor/usageEvents') return { createCursorUsageEventIndex: () => ({}) };
+      if (id === './runtime') return { async runAgentOnce(options) {
+        try { await options.deliver(summary); } catch (error) { rejectDelivery(error); throw error; }
+      } };
+      return agentRequire(id);
+    },
+    process: {
+      argv: ['node', filename, '--once'], pid: 123,
+      env: {
+        TOKEN_MONITOR_HUB_URL: 'https://hub.example', TOKEN_MONITOR_SECRET: 'secret',
+        TOKEN_MONITOR_DEVICE_ID: 'a', TOKEN_MONITOR_SESSION_USAGE_ARCHIVE_ENABLED: 'false'
+      },
+      on() {}
+    },
+    fetch: backend.fetchFn,
+    console: { log() {}, warn() {}, error() {} }
+  };
+  vm.runInNewContext(source, context, { filename });
+  await assert.rejects(delivered, /hub endpoint proof failed: wrong secret or impostor endpoint/);
+  assert.equal(backend.requests.some((request) => request.url.endsWith('/api/ingest')), false);
+  assert.equal(backend.requests.some((request) => request.url.includes('/api/sync/titles/')), false);
+  assert.equal(backend.requests.length, 0);
+});
 
 test('acknowledged local OFF survives TTL but destination, consent and invalidation revoke its cache', async () => {
   let time = 0;
