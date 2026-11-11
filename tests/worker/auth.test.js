@@ -4,6 +4,7 @@ const assert = require('node:assert/strict');
 const path = require('node:path');
 const { pathToFileURL } = require('node:url');
 const test = require('node:test');
+const { hubAuthProof } = require('../../src/shared/hubEndpointAuth');
 
 function fakeState() {
   const map = new Map();
@@ -42,6 +43,24 @@ test('Worker health stays open; data routes refuse a missing secret', async () =
   assert.equal((await hub.fetch(request('https://hub.example/api/ingest', {
     'content-type': 'application/json'
   }, { method: 'POST', body: JSON.stringify({ deviceId: 'a' }) }))).status, 401);
+});
+
+test('Worker endpoint challenge signs a fresh nonce without exposing the secret', async () => {
+  const hub = await hubDO();
+  const nonce = 'a'.repeat(64);
+  const response = await hub.fetch(request(`https://hub.example/api/auth/challenge?nonce=${nonce}`));
+  assert.equal(response.status, 200);
+  const body = await response.json();
+  assert.equal(body.nonce, nonce);
+  assert.equal(body.proof, hubAuthProof('shh', nonce));
+  assert.equal(body.secret, undefined);
+  assert.equal((await hub.fetch(request('https://hub.example/api/auth/challenge?nonce=short'))).status, 400);
+  assert.equal((await hub.fetch(request('https://hub.example/api/auth/challenge'))).status, 400);
+  // The challenge does not authorize data routes.
+  assert.equal((await hub.fetch(request('https://hub.example/api/stats'))).status, 401);
+
+  const open = await hubDO({ TOKEN_MONITOR_SECRET: '' });
+  assert.equal((await open.fetch(request(`https://hub.example/api/auth/challenge?nonce=${nonce}`))).status, 404);
 });
 
 test('Worker refuses every data route when TOKEN_MONITOR_SECRET is unset', async () => {

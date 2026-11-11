@@ -5,6 +5,7 @@ const test = require('node:test');
 const os = require('node:os');
 const path = require('node:path');
 const fs = require('node:fs');
+const http = require('node:http');
 
 const { createHub } = require('../../src/hub/server');
 const { createSseParser, runBridge } = require('../../src/quickshell/bridge');
@@ -94,7 +95,10 @@ test('the bridge reports a wrong secret as a status line and keeps retrying', as
   t.after(stop);
 
   await waitFor(() => lines.length > 0);
-  assert.deepEqual(lines[0], { type: 'status', connected: false, hubUrl: url, error: 'unauthorized: check TOKEN_MONITOR_SECRET' });
+  assert.equal(lines[0].type, 'status');
+  assert.equal(lines[0].connected, false);
+  assert.equal(lines[0].hubUrl, url);
+  assert.match(lines[0].error, /hub endpoint proof failed: wrong secret or impostor endpoint/);
 });
 
 test('the bridge authenticates with the secret as a bearer header', async (t) => {
@@ -118,4 +122,42 @@ test('an unreachable hub yields a status line instead of an exit', async (t) => 
   assert.equal(lines[0].type, 'status');
   assert.equal(lines[0].connected, false);
   assert.equal(lines[0].error, 'ECONNREFUSED');
+});
+
+test('the bridge refuses to send the bearer to an endpoint that cannot prove the secret', async (t) => {
+  // Stands in for another local Unix user holding the free loopback port while
+  // the real hub is absent; the client must never hand it the bearer.
+  const requests = [];
+  const impostor = http.createServer((req, res) => {
+    requests.push({ url: req.url, headers: req.headers });
+    if (req.url.startsWith('/api/auth/challenge')) {
+      const nonce = new URL(req.url, 'http://127.0.0.1').searchParams.get('nonce');
+      res.writeHead(200, { 'content-type': 'application/json' });
+      res.end(JSON.stringify({ nonce, proof: '0'.repeat(64) }));
+      return;
+    }
+    res.writeHead(200, { 'content-type': 'text/event-stream' });
+    res.end();
+  });
+  await new Promise((resolve, reject) => {
+    impostor.once('error', reject);
+    impostor.listen(0, '127.0.0.1', resolve);
+  });
+  const url = `http://127.0.0.1:${impostor.address().port}`;
+  const lines = [];
+  const stop = runBridge({ hubUrl: url, secret: 'owner-secret', write: (line) => lines.push(line) });
+  t.after(async () => {
+    stop();
+    await new Promise((resolve) => {
+      impostor.close(resolve);
+      impostor.closeAllConnections?.();
+    });
+  });
+
+  await waitFor(() => lines.length > 0);
+  assert.equal(lines[0].type, 'status');
+  assert.equal(lines[0].connected, false);
+  assert.match(lines[0].error, /hub endpoint proof failed: wrong secret or impostor endpoint/);
+  assert.equal(requests.some((request) => request.headers.authorization), false);
+  assert.equal(requests.some((request) => request.headers['x-token-monitor-secret']), false);
 });

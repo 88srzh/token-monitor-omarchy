@@ -8,6 +8,7 @@ const fs = require('node:fs');
 const http = require('node:http');
 
 const { createHub, resolveBindHost } = require('../../src/hub/server');
+const { hubAuthProof } = require('../../src/shared/hubEndpointAuth');
 const { codexAccountKey } = require('../../src/shared/providers/codex/auth');
 
 function waitFor(predicate, timeoutMs = 1000) {
@@ -101,6 +102,45 @@ test('a configured secret is accepted from headers, not from the query string', 
     assert.equal((await fetch(base, { headers: { authorization: 'Bearer nope' } })).status, 401);
     assert.equal((await fetch(base, { headers: { authorization: 'Bearer sh' } })).status, 401);
     assert.equal((await fetch(`${base}?secret=shh`, { headers: { authorization: 'Bearer nope' } })).status, 401);
+  } finally {
+    await hub.stop();
+    fs.rmSync(dataFile, { force: true });
+  }
+});
+
+test('the endpoint challenge proves the shared secret without exposing it', async () => {
+  const dataFile = tempDataFile();
+  const hub = createHub({ port: 0, host: '127.0.0.1', secret: 'shh', dataFile, logger: { error() {}, warn() {} } });
+  await hub.start();
+  try {
+    const { port } = hub.server.address();
+    const origin = `http://127.0.0.1:${port}`;
+    const nonce = 'a'.repeat(64);
+    const response = await fetch(`${origin}/api/auth/challenge?nonce=${nonce}`);
+    assert.equal(response.status, 200);
+    const body = await response.json();
+    assert.equal(body.nonce, nonce);
+    assert.equal(body.proof, hubAuthProof('shh', nonce));
+    assert.equal(body.secret, undefined);
+    assert.equal((await fetch(`${origin}/api/auth/challenge?nonce=short`)).status, 400);
+    assert.equal((await fetch(`${origin}/api/auth/challenge`)).status, 400);
+    // The challenge does not authorize data routes.
+    assert.equal((await fetch(`${origin}/api/stats`)).status, 401);
+    assert.equal((await fetch(`${origin}/api/stats`, { headers: { authorization: 'Bearer shh' } })).status, 200);
+  } finally {
+    await hub.stop();
+    fs.rmSync(dataFile, { force: true });
+  }
+});
+
+test('a hub without a secret does not expose an endpoint challenge', async () => {
+  const dataFile = tempDataFile();
+  const hub = createHub({ port: 0, host: '127.0.0.1', secret: '', dataFile, logger: { error() {}, warn() {} } });
+  await hub.start();
+  try {
+    const { port } = hub.server.address();
+    const response = await fetch(`http://127.0.0.1:${port}/api/auth/challenge?nonce=${'a'.repeat(64)}`);
+    assert.equal(response.status, 404);
   } finally {
     await hub.stop();
     fs.rmSync(dataFile, { force: true });

@@ -34,6 +34,7 @@ const {
   wantsMinimalResponse
 } = require('../shared/hubProtocol');
 const { isAuthorized, readJsonBody, sendJson, sendText } = require('../shared/http');
+const { hubAuthProof, isHubAuthNonce } = require('../shared/hubEndpointAuth');
 const { loadDotEnv, parseArgs, projectRoot, readJson, writeJsonAtomic } = require('../shared/config');
 
 const LOOPBACK_HOSTS = new Set(['127.0.0.1', 'localhost', '::1']);
@@ -408,6 +409,20 @@ function createHub({
         secretRequired: Boolean(secret),
         now: new Date().toISOString()
       });
+    }
+
+    // Endpoint proof for clients: the client sends a fresh random nonce, and
+    // the hub signs it with the shared secret. This endpoint is deliberately
+    // unauthenticated — a client must be able to verify the server before it
+    // reveals the secret. The HMAC is not a credential: an impostor can ask
+    // for proofs, but cannot produce one for a nonce without the secret.
+    if (req.method === 'GET' && url.pathname === '/api/auth/challenge') {
+      if (!secret) return sendJson(res, 404, { error: 'not_found' });
+      const nonce = String(url.searchParams.get('nonce') || '');
+      if (!isHubAuthNonce(nonce)) {
+        return sendJson(res, 400, { error: 'bad_request', message: 'nonce must be 32 hex bytes' });
+      }
+      return sendJson(res, 200, { nonce, proof: hubAuthProof(secret, nonce) });
     }
 
     if (!isAuthorized(req, secret)) return sendJson(res, 401, { error: 'unauthorized' });

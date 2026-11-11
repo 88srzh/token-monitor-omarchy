@@ -102,6 +102,22 @@ async function isAuthorized(request, expectedSecret) {
   return timingSafeEqualText(requestSecret(request), expectedSecret);
 }
 
+const HUB_AUTH_DOMAIN = 'token-monitor-hub-auth-v1';
+const HUB_AUTH_NONCE_PATTERN = /^[0-9a-f]{64}$/;
+
+// Endpoint proof: the client chooses a fresh nonce, and the Worker signs it
+// with the shared secret. This must stay byte-compatible with
+// src/shared/hubEndpointAuth.js. The HMAC is not a credential and does not
+// reveal the secret.
+async function hubAuthProof(secret, nonce) {
+  const encoder = new TextEncoder();
+  const key = await crypto.subtle.importKey(
+    'raw', encoder.encode(String(secret)), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']
+  );
+  const signature = await crypto.subtle.sign('HMAC', key, encoder.encode(`${HUB_AUTH_DOMAIN}:${nonce}`));
+  return Array.from(new Uint8Array(signature), (byte) => byte.toString(16).padStart(2, '0')).join('');
+}
+
 const SUBSCRIPTIONS_KEY = 'subscriptions';
 const SETTINGS_PREFIX = 'sync-settings:';
 const TITLE_POLICY_PREFIX = 'title-policy:';
@@ -456,6 +472,15 @@ export class HubDO {
         secretRequired: Boolean(this.secret),
         now: new Date().toISOString()
       }, {}, request);
+    }
+
+    if ((request.method === 'GET' || request.method === 'HEAD') && url.pathname === '/api/auth/challenge') {
+      if (!this.secret) return jsonResponse(404, { error: 'not_found' }, {}, request);
+      const nonce = String(url.searchParams.get('nonce') || '');
+      if (!HUB_AUTH_NONCE_PATTERN.test(nonce)) {
+        return jsonResponse(400, { error: 'bad_request', message: 'nonce must be 32 hex bytes' }, {}, request);
+      }
+      return jsonResponse(200, { nonce, proof: await hubAuthProof(this.secret, nonce) }, {}, request);
     }
 
     if ((request.method === 'GET' || request.method === 'HEAD') && url.pathname === '/api/public/stats') {

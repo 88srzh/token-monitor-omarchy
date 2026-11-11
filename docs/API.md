@@ -4,7 +4,24 @@ The hub exposes a small JSON HTTP API.
 
 ## Authentication
 
-All endpoints except `/api/health` require the configured shared secret.
+All endpoints except `/api/health` and `/api/auth/challenge` require the configured shared secret.
+
+### Endpoint proof
+
+A client that holds the secret must not send it until the endpoint proves it
+knows the same secret. Before an authenticated request, the client generates a
+fresh 32-byte nonce and calls `GET /api/auth/challenge?nonce=<64 lowercase hex>`.
+The hub returns `{ "nonce": ..., "proof": ... }`, where `proof` is
+`HMAC-SHA256(secret, "token-monitor-hub-auth-v1:" + nonce)` in lowercase hex.
+The client verifies the echoed nonce and compares the proof in constant time;
+only then does it send `Authorization: Bearer <secret>`. An endpoint that
+cannot produce the proof is treated as an impostor, and the client fails
+closed instead of sending the bearer.
+
+This closes the local loopback race where another user binds the hub port while
+the real hub is down: the impostor has no secret, so it cannot sign the fresh
+nonce. Clients with no configured secret skip the proof, because there is no
+secret to disclose.
 
 Prefer a header (first-party clients already do this):
 
@@ -49,6 +66,30 @@ Example response:
 ```
 
 `version` remains the legacy Hub storage/API value and is not a deployment version. `hubBuild` is the content-derived deployment identity used by Token Monitor to compare the remote Hub with the core bundled by the app. `core*` identifies shared Node/Worker aggregation logic; `runtime*` identifies the Node Hub or Cloudflare Worker adapter. Product-only version bumps do not change either build ID. This is a build marker generated from the registered source closure, not a runtime attestation: a fork that changes source without regenerating its metadata may still report the marker it started from. A health response without `hubBuild` is a legacy Hub and remains otherwise compatible; present but malformed metadata is unrecognized instead of being treated as legacy.
+
+## `GET /api/auth/challenge`
+
+Endpoint proof for clients that hold the shared secret. This route is
+unauthenticated by design: it must answer before the client has revealed the
+secret. It returns nothing but a signature over the client's fresh nonce, so it
+does not weaken the secret and cannot be used to recover it.
+
+Query: `nonce` is mandatory and must be exactly 32 random bytes encoded as 64
+lowercase hex characters.
+
+Example response:
+
+```json
+{
+  "nonce": "3f2c…",
+  "proof": "9a1b…"
+}
+```
+
+`proof` is `HMAC-SHA256(secret, "token-monitor-hub-auth-v1:" + nonce)` in
+lowercase hex. A hub without a configured secret returns `404`; an invalid or
+missing nonce returns `400`. The endpoint does not authorize any data route.
+Clients must not send `Authorization` or `X-Token-Monitor-Secret` to this route.
 
 ## `POST /api/ingest`
 
