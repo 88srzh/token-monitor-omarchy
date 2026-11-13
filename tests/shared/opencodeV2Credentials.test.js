@@ -10,6 +10,7 @@ const { DatabaseSync } = require('node:sqlite');
 const {
   readV2Credential,
   readV2ApiKey,
+  readV2ConsoleIdentity,
   readV2ConsoleSession,
   normalizeConsoleServer
 } = require('../../src/shared/providers/opencode/v2Credentials');
@@ -128,6 +129,23 @@ test('expired OAuth sessions are ignored rather than refreshed', () => {
   assert.equal(readV2ConsoleSession(env, { now: () => NOW }), null);
 });
 
+test('an expired OAuth session still exposes its workspace identity', () => {
+  const env = envWithDb([{
+    integrationId: 'opencode',
+    value: {
+      type: 'oauth',
+      access: 'st_access',
+      refresh: 'rt_refresh',
+      expires: NOW + 30 * 1000,
+      metadata: { server: 'https://opencode.ai/console', orgID: 'org_FIXTURE' }
+    }
+  }]);
+  assert.deepEqual(readV2ConsoleIdentity(env, { now: () => NOW }), {
+    orgId: 'org_FIXTURE',
+    server: 'https://opencode.ai/console'
+  });
+});
+
 for (const [name, patch] of [
   ['missing access', { access: '' }],
   ['missing org', { metadata: { server: 'https://opencode.ai/console' } }],
@@ -148,11 +166,13 @@ for (const [name, patch] of [
     }
   }]);
   assert.equal(readV2ConsoleSession(env, { now: () => NOW }), null);
+  assert.equal(readV2ConsoleIdentity(env, { now: () => NOW }), null);
 });
 
 test('an empty env is not a licence to read the developer home database', () => {
   assert.equal(readV2ApiKey('opencode-go', {}), '');
   assert.equal(readV2ConsoleSession({}), null);
+  assert.equal(readV2ConsoleIdentity({}), null);
 });
 
 test('a missing credential table reads as no credential', () => {

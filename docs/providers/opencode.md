@@ -22,13 +22,13 @@ Profile names are user labels, not stable account identity. API keys and Web res
 
 ## Credentials
 
-OpenCode 1.x keeps credentials in `auth.json`; 2.x keeps them in the `credential` table of `opencode.db`. The collector reads both stores for the two ambient credentials it understands: the `opencode-go` API key and the `opencode` Console OAuth session. A document that is present but has no Go entry may fall through to the 2.x database; an entry that exists but is not an API key, or a restricted `OPENCODE_AUTH_CONTENT` set, does not. An expired Console access token is ignored rather than refreshed, because refreshing it rotates a refresh token the OpenCode client owns. This module only reads the database.
+OpenCode 1.x keeps credentials in `auth.json`; 2.x keeps them in the `credential` table of `opencode.db`. The collector reads both stores for the two ambient credentials it understands: the `opencode-go` API key and the `opencode` Console OAuth session. A document that is present but has no Go entry may fall through to the 2.x database; an entry that exists but is not an API key, or a restricted `OPENCODE_AUTH_CONTENT` set, does not. An expired Console access token is ignored rather than refreshed, because refreshing it rotates a refresh token the OpenCode client owns. The credential's workspace id is still read from an expired session and published as the account identity, so a key-only device on the same account can group with the devices that hold a live Console session. This module only reads the database.
 
 ## Source authority
 
 Single-account mode resolves Go quota in API, then Web, then local order when local estimates are enabled. Multi-account profiles use API then Web only: the device-wide local ledger cannot be safely attributed to an individual profile. Each component remains authoritative only for the windows it actually answers. Supplemental windows fill only kinds not already answered by the selected Go source; merge order must not duplicate quota.
 
-The Console OAuth session is an ambient Web source, used only when the refresh is otherwise ambient (no explicit profile or cookie). When no Go API key is present it can supply the aggregate windows; when one is present it supplies only the per-model rows. A cookie and the OAuth session must name the same workspace before their identities are merged.
+The Console OAuth session is an ambient Web source, used only when the refresh is otherwise ambient (no explicit profile or cookie). When no Go API key is present it can supply the aggregate windows; when one is present it supplies only the per-model rows. A cookie and the OAuth session must name the same workspace before their identities are merged. An expired session is never used for a probe, but its workspace id still becomes an alias for the ambient account, so an API-key-only device can collapse into the same row as a device with a live session.
 
 ## Go model allowances
 

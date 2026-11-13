@@ -27,6 +27,7 @@ const collectLimitsOnce = (options, deps = {}) => collectLimitsOnceRaw(options, 
   // rows to every fixture here.
   opencodeReadGoApiKey: () => '',
   opencodeReadConsoleSession: () => null,
+  opencodeReadConsoleIdentity: () => null,
   ...deps
 });
 
