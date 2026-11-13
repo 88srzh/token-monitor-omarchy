@@ -158,6 +158,8 @@ async function fetchOpenCodeLimits(options = {}, deps = {}) {
   const fetchZen = deps.opencodeFetchZen || ((cookie, d) => opencodeWeb.fetchZen(cookie, d));
   const readConsoleSession = deps.opencodeReadConsoleSession
     || ((env) => opencodeV2Credentials.readV2ConsoleSession(env));
+  const readConsoleIdentity = deps.opencodeReadConsoleIdentity
+    || ((env) => opencodeV2Credentials.readV2ConsoleIdentity(env));
   const fetchConsoleGo = deps.opencodeFetchConsoleGo
     || ((session, d) => opencodeConsole.fetchConsoleSession('go', session, d));
   const fetchConsoleOrgs = deps.opencodeFetchConsoleOrgs
@@ -249,6 +251,12 @@ async function fetchOpenCodeLimits(options = {}, deps = {}) {
       && cookies.length <= 1
       && (cookies.length === 0 || primary.ambient === true);
     const consoleSession = oauthEligible ? readConsoleSession(deps.env || process.env) : null;
+    // An expired access token cannot probe the Console, but the credential's
+    // workspace id is still the identity this device belongs to. Keep it as the
+    // alias a key-only device needs to group with the account's other devices.
+    const consoleIdentity = oauthEligible && !consoleSession
+      ? readConsoleIdentity(deps.env || process.env)
+      : null;
     const webDeps = opencodeWeb.createProbeDeps({ now: () => nowMs, fetch: deps.fetch, signal: deps.signal, env: deps.env });
     const [goApi, goWeb, zen, oauthGo, oauthOrgs, usageModels] = await Promise.all([
       collectGoApi({
@@ -267,10 +275,12 @@ async function fetchOpenCodeLimits(options = {}, deps = {}) {
     const webIdentity = openCodeWebIdentity(goWeb, zen, cookie);
     // A cookie and the OAuth session identify the same workspace by the same
     // string. When only OAuth is present there is nothing to compare, so it is
-    // the ambient account by construction.
+    // the ambient account by construction. An expired session still names its
+    // workspace, and that id is what lets a key-only device on the same account
+    // collapse into one row on the Hub.
     const oauthWorkspaceId = consoleSession
       ? String(oauthGo?.workspaceId || consoleSession.orgId || '')
-      : '';
+      : String(consoleIdentity?.orgId || '');
     const oauthAccountMatches = !cookie || (
       oauthWorkspaceId
       && (

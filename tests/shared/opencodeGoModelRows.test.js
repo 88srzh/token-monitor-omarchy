@@ -56,6 +56,7 @@ function baseDeps(overrides = {}) {
     now: () => NOW,
     opencodeReadGoApiKey: () => '',
     opencodeReadConsoleSession: () => session,
+    opencodeReadConsoleIdentity: () => null,
     opencodeCollectGoApi: async () => ({ status: 'notConfigured', windows: [], identity: '' }),
     opencodeFetchConsoleGo: async (s) => goResult({ workspaceId: s.orgId }),
     opencodeFetchConsoleOrgs: async () => ({

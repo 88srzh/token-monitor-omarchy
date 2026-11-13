@@ -8,7 +8,10 @@
 // This module only reads. An expired OAuth access token is ignored rather than
 // refreshed: refreshing it would rotate a single-use refresh token out from
 // under the OpenCode client that owns it, and the token becomes fresh again the
-// next time the user signs in or starts the client.
+// next time the user signs in or starts the client. The workspace identity the
+// stale credential still carries is read separately, because aliases let the
+// Hub group this device with another one that holds the same account through a
+// different credential.
 
 const { discoverDbPaths } = require('./goLimits');
 const { cleanSecret } = require('../../limits/providerHelpers');
@@ -89,17 +92,35 @@ function normalizeConsoleServer(raw) {
   return CONSOLE_SERVERS.has(text) ? text : '';
 }
 
-function readV2ConsoleSession(env = process.env, deps = {}) {
-  const credential = readV2Credential('opencode', env, deps);
+function consoleIdentityFromCredential(credential) {
   if (!credential || String(credential.type || '').toLowerCase() !== 'oauth') return null;
+  if (!cleanSecret(credential.access)) return null;
 
-  const access = cleanSecret(credential.access);
   const metadata = credential.metadata && typeof credential.metadata === 'object'
     ? credential.metadata
     : {};
   const orgId = String(metadata.orgID || credential.orgID || '').trim();
   const server = normalizeConsoleServer(metadata.server || credential.server || 'https://opencode.ai/console');
-  if (!access || !/^(?:wrk_|org_)[A-Za-z0-9_-]+$/.test(orgId) || !server) return null;
+  const expires = Number(credential.expires);
+  if (!/^(?:wrk_|org_)[A-Za-z0-9_-]+$/.test(orgId) || !server) return null;
+  if (!Number.isFinite(expires) || expires <= 0) return null;
+  return { orgId, server };
+}
+
+// The workspace identity is useful even when the access token has expired: it
+// is the stable id a key-only device on the same account can be grouped with,
+// and reading it does not touch the token or the refresh chain.
+function readV2ConsoleIdentity(env = process.env, deps = {}) {
+  return consoleIdentityFromCredential(readV2Credential('opencode', env, deps));
+}
+
+function readV2ConsoleSession(env = process.env, deps = {}) {
+  const credential = readV2Credential('opencode', env, deps);
+  const identity = consoleIdentityFromCredential(credential);
+  if (!identity) return null;
+
+  const access = cleanSecret(credential.access);
+  if (!access) return null;
 
   const expires = Number(credential.expires);
   if (!Number.isFinite(expires) || expires <= 0) return null;
@@ -107,7 +128,7 @@ function readV2ConsoleSession(env = process.env, deps = {}) {
   const now = (deps.now || Date.now)();
   if (expiresAt <= now + OAUTH_EXPIRY_SKEW_MS) return null;
 
-  return { access, orgId, expiresAt, server };
+  return { access, ...identity, expiresAt };
 }
 
 module.exports = {
@@ -115,6 +136,7 @@ module.exports = {
   readCredentialRows,
   readV2Credential,
   readV2ApiKey,
+  readV2ConsoleIdentity,
   readV2ConsoleSession,
   normalizeConsoleServer
 };

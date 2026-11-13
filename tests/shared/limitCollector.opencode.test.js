@@ -17,6 +17,7 @@ const collectLimitsOnce = (options, deps = {}) => collectLimitsOnceRaw(options, 
   // The Console OAuth session is ambient too; left unstubbed it would read the
   // developer's real OpenCode 2.x database and add model rows to every fixture.
   opencodeReadConsoleSession: () => null,
+  opencodeReadConsoleIdentity: () => null,
   ...deps
 });
 
@@ -123,6 +124,53 @@ test('OpenCode Web identity stays stable when Go availability changes for the sa
     { deviceId: 'go-device', limits: goAndZenSummary },
     { deviceId: 'zen-device', limits: zenOnlySummary }
   ], 0, now).providers.length, 1);
+});
+
+test('an expired Console session still names the workspace for a key-only device', async () => {
+  const now = Date.UTC(2026, 5, 4, 12, 0, 0);
+  const summary = await collectLimitsOnce(
+    { limitProviders: 'opencode', limitsEnabled: true },
+    {
+      now: () => now,
+      opencodeReadGoApiKey: () => 'go-key',
+      opencodeReadConsoleSession: () => null,
+      opencodeReadConsoleIdentity: () => ({
+        orgId: 'shared-workspace',
+        server: 'https://opencode.ai/console'
+      }),
+      opencodeCollectGoApi: async () => ({
+        status: 'ok',
+        identity: goApiIdentity('go-key'),
+        windows: [{ kind: 'session', usedPercent: 10 }]
+      })
+    }
+  );
+  const provider = summary.providers[0];
+  assert.equal(provider.accountKey, hashKey('opencode', 'workspace:shared-workspace'));
+  assert.equal(provider.webAccountKey, hashKey('opencode', 'workspace:shared-workspace'));
+  assert.deepEqual(new Set(provider.accountKeyAliases), new Set([
+    hashKey('opencode', goApiIdentity('go-key')),
+    hashKey('opencode', 'go:shared-workspace'),
+    hashKey('opencode', 'zen:shared-workspace')
+  ]));
+
+  const aggregate = aggregateLimits([
+    {
+      deviceId: 'other-device',
+      limits: {
+        providers: [{
+          provider: 'opencode',
+          accountKey: hashKey('opencode', 'workspace:shared-workspace'),
+          webAccountKey: hashKey('opencode', 'workspace:shared-workspace'),
+          status: 'ok',
+          updatedAt: new Date(now).toISOString(),
+          windows: [{ kind: 'session', source: 'web', usedPercent: 10 }]
+        }]
+      }
+    },
+    { deviceId: 'key-only-device', limits: summary }
+  ], 0, now);
+  assert.equal(aggregate.providers.length, 1);
 });
 
 test('OpenCode Web identity ignores workspace ids from failed probes', async () => {
