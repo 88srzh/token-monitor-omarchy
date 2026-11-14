@@ -41,7 +41,7 @@ TOKEN_MONITOR_DEVICE_ID=build-server
 ```
 
 - `TOKEN_MONITOR_DEVICE_ID` 默认是主机名，必须在所有设备之间唯一：hub 会把相同 ID 当作同一台设备，后发送的记录会覆盖另一台。
-- `TOKEN_MONITOR_CLIENTS` 列出要采集的工具（逗号分隔）。`.env.example` 已列出默认的工具，删掉不需要的即可。Qoder CN 默认关闭，需要时加入 `qodercn`。
+- `TOKEN_MONITOR_CLIENTS` 列出要采集的工具（逗号分隔）。`.env.example` 已列出默认的工具，删掉不需要的即可。Qoder 和 Qoder CN 默认关闭，需要时加入 `qoder` 或 `qodercn`。Qoder 在持久化每条消息的用量之前读数为零。
 - 额度所需的服务商凭据、代理设置以及其他所有选项，见 [`.env.example`](../.env.example) 与 [configuration.md](configuration.md#headless-agent--hub-env)。优先级为 CLI 参数 → 环境变量 → 内置默认值。
 
 无论从哪个目录启动，agent 都会读取 checkout 根目录下的 `.env`。

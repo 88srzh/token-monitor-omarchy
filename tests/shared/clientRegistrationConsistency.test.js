@@ -66,7 +66,7 @@ test('source markers declare each WSL path once and preserve discovery order', (
     '.claude/projects', '.claude/transcripts', '.codex/sessions', '.local/share/opencode',
     '.openclaw/agents', '.clawdbot/agents', '.moltbot/agents', '.moldbot/agents',
     '.local/share/goose/sessions/sessions.db', '.local/share/Block/goose/sessions/sessions.db',
-    '.hermes', '.kimi/sessions', '.kimi-code/sessions', '.qwen/projects',
+    '.hermes', '.kimi/sessions', '.kimi-code/sessions', '.qwen/projects', '.qoder/projects',
     '.grok/sessions', '.copilot/otel', '.copilot/session-state', '.gemini/antigravity-cli/conversations',
     '.gemini/antigravity/conversations', '.gemini/tmp',
     '.config/Code/User/globalStorage/saoudrizwan.claude-dev/tasks',
