@@ -20,13 +20,13 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # Both supported Node versions on Linux; latest-Node smoke on macOS/Windows to
-        # catch platform-specific bugs (tray on macOS, WSL/paths on Windows).
+        # Both supported Node versions on Linux; latest-Node smoke on Windows to
+        # catch platform-specific bugs (WSL/paths). The macOS smoke lives in its
+        # own main-only job below because PR jobs can sit queued for a scarce
+        # macOS runner until the PR merges, which cancels the job.
         os: [ubuntu-latest]
         node-version: ['22', '24']
         include:
-          - os: macos-latest
-            node-version: '24'
           - os: windows-latest
             node-version: '24'
     steps:
@@ -63,6 +63,26 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
+  test-macos:
+    # macOS runners are scarce and GitHub prioritizes default-branch runs over
+    # pull requests. A PR job can sit queued until the PR merges, which cancels
+    # it and marks an otherwise green run red. Keep the macOS smoke on main,
+    # where it still catches platform regressions before release.
+    if: github.event_name == 'push'
+    runs-on: macos-latest
+    # The old shared 15-minute test bound also cut off queued macOS runs; leave
+    # queue time enough room to get a runner.
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+      - run: npm test
+
   timezones:
     # Every GitHub-hosted runner sets its clock to UTC on every OS, so the
     # os × node matrix above varies two axes and still samples a single UTC
@@ -94,7 +114,11 @@ jobs:
           done
 
   mac-widget:
+    # Same reason as test-macos: PR runs queue for the scarce macOS runners and
+    # are cancelled when the PR merges. Run it on main, where it gates releases.
+    if: github.event_name == 'push'
     runs-on: macos-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
