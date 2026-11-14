@@ -424,6 +424,12 @@ function clientSourceRoots(clientsCsv, options = {}) {
       ...catpaw.dbPaths.map((file) => ['catpaw-db', path.dirname(file), file])
     );
   }
+  // Qoder — upstream reads the home-relative ~/.qoder/projects JSONL tree on
+  // every platform (clients.rs PathRoot::EnvVar QODER_CONFIG_DIR, fallback
+  // .qoder). Managed-model rows report no measured usage yet, so this counts
+  // reported tokens only; the credit quota lives in the qoder limits provider.
+  const qoderHome = nonBlankEnvPath('QODER_CONFIG_DIR', path.join(home, '.qoder'), env);
+  add('qoder', ['qoder-projects', path.join(qoderHome, 'projects')]);
   // Qoder CN — legacy SQLite DB under the platform Application Support dir,
   // or the JSONL transcript tree used by current builds.
   const qoderCnPaths = qoderCnDataPaths({ homeDir: home, platform, env });

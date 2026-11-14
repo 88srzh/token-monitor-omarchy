@@ -30,7 +30,7 @@
 
 ## Token Monitor란?
 
-Claude Code, Codex, Cursor, GitHub Copilot, Cherry Studio 등 54개 이상의 AI 코딩 도구의 실시간 토큰 사용량과 AI 도구 한도를 보여 주는 데스크톱 앱입니다. 여러 기기 간 실시간 동기화, 사용 추세 기록, 도구·기기·모델·세션·프로젝트별 분류 보기를 지원합니다. 메인 창, MacBook 노치, 메뉴 막대나 시스템 트레이, 화면 가장자리, 플로팅 버블, 네이티브 macOS 위젯 등 시선이 닿는 곳 어디서나 확인할 수 있습니다.
+Claude Code, Codex, Cursor, GitHub Copilot, Cherry Studio 등 55개 이상의 AI 코딩 도구의 실시간 토큰 사용량과 AI 도구 한도를 보여 주는 데스크톱 앱입니다. 여러 기기 간 실시간 동기화, 사용 추세 기록, 도구·기기·모델·세션·프로젝트별 분류 보기를 지원합니다. 메인 창, MacBook 노치, 메뉴 막대나 시스템 트레이, 화면 가장자리, 플로팅 버블, 네이티브 macOS 위젯 등 시선이 닿는 곳 어디서나 확인할 수 있습니다.
 
 ## 지원 도구
 
@@ -68,6 +68,7 @@ Claude Code, Codex, Cursor, GitHub Copilot, Cherry Studio 등 54개 이상의 AI
     <img src=".github/assets/tools-icon/proma.png" width="40" alt="Proma" title="Proma" />
     <img src=".github/assets/tools-icon/catpaw.png" width="40" alt="CatPaw" title="CatPaw" />
     <img src=".github/assets/tools-icon/qoder.png" width="40" alt="Qoder" title="Qoder" />
+    <img src=".github/assets/tools-icon/qodercn.png" width="40" alt="Qoder CN" title="Qoder CN" />
     <img src=".github/assets/tools-icon/reasonix.png" width="40" alt="Reasonix" title="Reasonix" />
     <img src=".github/assets/tools-icon/deepseek.png" width="40" alt="DeepSeek" title="DeepSeek" />
     <img src=".github/assets/tools-icon/cherrystudio.png" width="40" alt="Cherry Studio" title="Cherry Studio" />
@@ -160,7 +161,7 @@ brew install --cask token-monitor
 
 ### 사용량 추적
 
-- **실시간 토큰 추적** — Claude Code, Codex, Cursor, GitHub Copilot, Antigravity, OpenCode 등 42개 이상의 AI 도구, 턴당 수 초 내 UI 갱신 (전체 목록은 위 표 참고)
+- **실시간 토큰 추적** — Claude Code, Codex, Cursor, GitHub Copilot, Antigravity, OpenCode 등 43개 이상의 AI 도구, 턴당 수 초 내 UI 갱신 (전체 목록은 위 표 참고)
 - **실시간 토큰 속도** — 생성 속도를 `tok/s`로, 총 소모를 `tok/min`으로 보여주는 선택형 실시간 표시
 - **세션별 상세** — 세션을 열면 프롬프트별 토큰, 응답별 토큰 분할·사용 도구까지 확장 (로컬 transcript/DB를 필요할 때만 읽으며 동기화하지 않음)
 - **캐시 히트 통계** — 도구·모델 클릭 시 입력 토큰(캐시 hit/miss), 출력 토큰, 히트율 상세
@@ -245,7 +246,8 @@ Token Monitor는 **토큰 사용량**, **계정 한도**, **세션 상세**를 �
 | <img src=".github/assets/tools-icon/workbuddy.png" width="28" alt="WorkBuddy" /> | WorkBuddy | `~/.workbuddy/projects/`, `~/.workbuddy/workbuddy.db` | ✅ | ✅ | ✅ |
 | <img src=".github/assets/tools-icon/proma.png" width="28" alt="Proma" /> | Proma | `~/.proma/` (`agent-sessions/`, `sdk-config/sessions/`, `sdk-config/projects/`), `~/.proma-dev/` | ✅ | — | — |
 | <img src=".github/assets/tools-icon/catpaw.png" width="28" alt="CatPaw" /> | CatPaw | `<platform-app-data>/` (`catpaw-moon/`, `catpaw-overseas/`, `catpaw-memory-*.db`) | ✅ | — | — |
-| <img src=".github/assets/tools-icon/qoder.png" width="28" alt="Qoder" /> | Qoder | `~/.qoder-cn/projects/**/*.jsonl`, legacy `<platform-app-data>/QoderCN/SharedClientCache/cache/db/local.db`(중국판 전용) | ✅ | ✅ | — |
+| <img src=".github/assets/tools-icon/qoder.png" width="28" alt="Qoder" /> | Qoder | `~/.qoder/projects/**/*.jsonl` (`QODER_CONFIG_DIR`) | ✅ | ✅ | — |
+| <img src=".github/assets/tools-icon/qodercn.png" width="28" alt="Qoder CN" /> | Qoder CN | `~/.qoder-cn/projects/**/*.jsonl`, legacy `<platform-app-data>/QoderCN/SharedClientCache/cache/db/local.db`(중국판 전용) | ✅ | — | — |
 | <img src=".github/assets/tools-icon/reasonix.png" width="28" alt="Reasonix" /> | Reasonix | `~/.reasonix/` (`stats/`, `sessions/`, `projects/*/sessions/`) | ✅ | — | — |
 | <img src=".github/assets/tools-icon/deepseek.png" width="28" alt="DeepSeek" /> | DeepSeek / DeepSeek Harness | `~/.dsh/sessions/` (`session.jsonl`, `session.jsonl.zstd`) | ✅ | ✅ | ✅ |
 | <img src=".github/assets/tools-icon/cherrystudio.png" width="28" alt="Cherry Studio" /> | Cherry Studio | `<platform-app-data>/CherryStudio/` (`Data/Agents/.claude/projects/` V2, `.claude/projects/` legacy) | ✅ | — | — |
@@ -275,7 +277,7 @@ Token Monitor는 **토큰 사용량**, **계정 한도**, **세션 상세**를 �
 
 <br>
 
-- 위 경로는 기본값입니다. Token Monitor는 Tokscale과 동일한 환경 변수 재정의를 따릅니다 — `~/.local/share/` 아래 경로는 `$XDG_DATA_HOME`, 도구별로는 `$CODEX_HOME`, `$GEMINI_CLI_HOME`, `$SENPI_CODING_AGENT_DIR`, `$SENPI_CODING_AGENT_SESSION_DIR`, `$GROK_HOME`, `$HERMES_HOME`, `$GOOSE_PATH_ROOT`, `$KIMI_CODE_HOME`, `$UNSLOTH_STUDIO_HOME`, `$LM_STUDIO_HOME`, `$DSH_HOME`, `$REASONIX_STATE_HOME`, `$REASONIX_HOME`, `$CLINE_*` 계열입니다.
+- 위 경로는 기본값입니다. Token Monitor는 Tokscale과 동일한 환경 변수 재정의를 따릅니다 — `~/.local/share/` 아래 경로는 `$XDG_DATA_HOME`, 도구별로는 `$CODEX_HOME`, `$GEMINI_CLI_HOME`, `$SENPI_CODING_AGENT_DIR`, `$SENPI_CODING_AGENT_SESSION_DIR`, `$GROK_HOME`, `$HERMES_HOME`, `$GOOSE_PATH_ROOT`, `$KIMI_CODE_HOME`, `$UNSLOTH_STUDIO_HOME`, `$LM_STUDIO_HOME`, `$DSH_HOME`, `$QODER_CONFIG_DIR`, `$REASONIX_STATE_HOME`, `$REASONIX_HOME`, `$CLINE_*` 계열입니다.
 - Gemini CLI는 호스트에서 `$GEMINI_CLI_HOME`을 지원하며, WSL은 Linux 기본 경로 `~/.gemini/tmp/`만 감지합니다. 새 설치에서는 기본으로 추적하며, 저장된 도구 목록이 있으면 Settings → tools에서 활성화해야 합니다.
 - Muse Code 구독 한도는 Muse Code 1.4.13+의 `muse usage --json`과 기존 로그인을 사용합니다. 할당량이 없거나 API 키 결제인 경우 비율을 표시할 수 없습니다. [Muse 데이터 소스 설명](docs/providers/muse.md)을 참고하세요.
 - Goose 사용량은 이후 날짜에 사용한 양도 세션 생성일에 포함됩니다. 원격 goosed와 사용자 지정 스캔 경로는 지원하지 않습니다. [Goose 데이터 소스 설명](docs/providers/goose.md)을 참고하세요.
@@ -293,6 +295,10 @@ Token Monitor는 **토큰 사용량**, **계정 한도**, **세션 상세**를 �
 - Cursor 캐시는 Cursor의 계정 수준 사용량 내보내기에서 가져오므로 Cursor IDE, Cursor CLI 및 Grok Bot 사용량을 포함합니다. Token Monitor는 Cursor 데스크톱 앱에 로그인된 계정을 자동으로 감지하며 설정에서 계정을 수동으로 추가할 수도 있습니다. 오래된 캐시는 자동으로 다시 동기화되지만 방금 끝난 세션이 Cursor 대시보드에 도달하기까지 몇 분이 걸릴 수 있으므로 최신 사용량이 표시되기까지 여전히 지연이 발생할 수 있습니다.
 
 - Custom은 하나의 GET 잔액 엔드포인트에서 숫자 JSON 필드를 매핑합니다. OpenAI 또는 Anthropic API 호환만으로는 충분하지 않습니다.
+
+#### Qoder(로컬 어댑터)
+
+Qoder는 기본 꺼짐이며 Settings → tools에서 활성화합니다. `~/.qoder/projects`(`QODER_CONFIG_DIR`) 아래 JSONL을 읽으며 보고된 토큰만 집계합니다. Qoder의 관리형 모델은 현재 메시지별 실제 토큰 사용량을 저장하지 않으므로 Qoder가 토큰 수를 기록할 때까지 이 행은 0입니다. 실제 토큰이 있는 BYOK/사용자 지정 모델 행은 정상 집계됩니다. Credits는 토큰이 아닌 할당량 단위이며 AI Tool Limits의 Qoder 제공자에 표시되고 Qoder CN과 공유합니다. [Qoder 데이터 소스 설명](docs/providers/qodercn.md)을 참고하세요.
 
 #### Qoder CN(로컬 어댑터)
 

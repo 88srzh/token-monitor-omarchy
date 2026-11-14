@@ -40,6 +40,7 @@ const SOURCE_MARKERS = [
   { marker: '.kimi/sessions', client: 'kimi' },
   { marker: '.kimi-code/sessions', client: 'kimi' },
   { marker: '.qwen/projects', client: 'qwen', hostCheckId: 'qwen-projects' },
+  { marker: '.qoder/projects', client: 'qoder' },
   { marker: '.grok/sessions', client: 'grok' },
   { marker: '.copilot/otel', client: 'copilot' },
   { marker: '.copilot/session-state', client: 'copilot' },

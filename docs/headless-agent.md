@@ -41,7 +41,7 @@ TOKEN_MONITOR_DEVICE_ID=build-server
 ```
 
 - `TOKEN_MONITOR_DEVICE_ID` defaults to the hostname. It must be unique across your devices: the hub treats a matching ID as the same device, so the latest post replaces the other one.
-- `TOKEN_MONITOR_CLIENTS` lists the tools to collect (comma-separated). `.env.example` already lists the default set; remove the ones you don't want. Qoder CN is off by default; add `qodercn` to collect it.
+- `TOKEN_MONITOR_CLIENTS` lists the tools to collect (comma-separated). `.env.example` already lists the default set; remove the ones you don't want. Qoder and Qoder CN are off by default; add `qoder` or `qodercn` to collect them. Qoder reads zero until it persists per-message usage.
 - Provider credentials for account limits, proxy settings, and every other option are documented in [`.env.example`](../.env.example) and [configuration.md](configuration.md#headless-agent--hub-env). A CLI flag overrides the env var, which overrides the built-in default.
 
 The agent reads `.env` from the checkout root, wherever it is started from.

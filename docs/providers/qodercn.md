@@ -15,18 +15,21 @@ Qoder has two deliberately separate ids:
 
 | Id | Role | Unit |
 | --- | --- | --- |
+| `qoder` | opt-in tracked client for local Qoder usage, and AI Tool Limits provider for global or CN accounts | tokens (usage rows); big-model credits (limits) |
 | `qodercn` | opt-in tracked client for local Qoder CN usage | tokens and estimated API cost |
-| `qoder` | AI Tool Limits provider for global or CN accounts | big-model credits |
 
-Credits are quota units, not tokens. Never copy credit deltas into `qodercn` usage rows or token history.
+Both usage clients are opt-in (`defaultTracked: false`). Credits are quota units, not tokens. Never copy credit deltas into `qoder`/`qodercn` usage rows or token history.
 
 ## Data sources
 
 | Data | Source |
 | --- | --- |
+| Current Qoder token usage | Claude-compatible JSONL transcripts under `$QODER_CONFIG_DIR/projects` (default `~/.qoder/projects`) |
 | Current Qoder CN token usage | Claude-compatible JSONL transcripts under the configured `projects` directory |
 | Legacy Qoder CN token usage | `SharedClientCache/cache/db/local.db` under the platform QoderCN app-data root |
 | Credit quota and plan | Qoder's global or CN web API, authenticated with the separately configured `qoder` cookie |
+
+Global `qoder` is parsed by upstream tokscale (`crates/tokscale-core/src/sessions/qoder.rs` in Javis603/tokscale), so it is a normal tracked client, not `forkOnly`. It reads `$QODER_CONFIG_DIR/projects` (default `~/.qoder/projects`) plus `~/.qoder-cn/projects` and subagent transcripts, and counts reported tokens only (measured-only). Qoder CLI does not yet persist per-message `usage`, so a first-party, plan-billed install reads zero until Qoder writes token counts or a BYOK/custom-model row carries measured fields; the client is registered ahead of that so it works without a code change once usage appears. Unlike `qodercn`, upstream `qoder` keeps `input_tokens` inclusive of `cache_read_input_tokens` (it does not subtract the cached subset).
 
 Token Monitor's tokscale fork parses Qoder CN (`crates/tokscale-core/src/token_monitor/qodercn.rs` in Javis603/tokscale); upstream tokscale has no `qodercn` client, so the catalog marks it `forkOnly`. The parser reads both usage layouts because an upgraded machine can retain historical SQLite data while new sessions are written to JSONL. JSONL token semantics differ from Anthropic's envelope: `input_tokens` already includes `cache_read_input_tokens`, so the parser subtracts the cached subset before emitting uncached input. Model display names and routing tiers (`auto`, `ultimate`, …) are normalized there too; routing tiers are never priced from the model catalog.
 
