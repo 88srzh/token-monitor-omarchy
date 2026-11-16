@@ -174,7 +174,9 @@ Panel {
 
           // ---------- Not connected ----------
           BorderSurface {
-            visible: !feed.connected
+            // Only on a real error: before the first snapshot the feed is
+            // silent, and an alarm block would flash on every normal open.
+            visible: !feed.connected && feed.error !== ""
             width: parent.width
             implicitHeight: offlineText.implicitHeight + Style.spacing.xl * 2
             color: root.alpha(root.urgent, 0.10)
